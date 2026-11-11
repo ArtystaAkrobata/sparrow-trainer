@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.6. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.7. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -133,7 +133,7 @@ function clientView(){let c=findClient(clientId);if(!c)return `<div class="card 
 <div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} Nowy plan dla tej osoby`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
 <div class="section-title">WYKONANE TRENINGI · ${logs.length}</div>${logs.slice(0,10).map(l=>`<div class="card"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleDateString('pl-PL')}</div></div>`).join('')}${btn('delete-client',`${ico('trash')} Usuń kartotekę`,'minor full','data-id="'+esc(c.id)+'"')}`;}
 function historyView(){let arr=[...data.logs].sort((a,b)=>b.timestamp-a.timestamp);return `<div class="title-row"><div><div class="eyebrow">DZIENNIK TRENINGÓW</div><h1>Historia</h1><div class="sub">Treningi oznaczone jako wykonane</div></div></div>${arr.length?arr.map(l=>`<div class="card"><div class="row between"><div class="grow"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleString('pl-PL',{dateStyle:'medium',timeStyle:'short'})} · ${l.type==='group'?'grupowy':'indywidualny'}</div>${l.clientId?`<div class="sub">${esc(findClient(l.clientId)?.name||'podopieczny')}</div>`:''}</div><button class="mini-ico" data-action="delete-log" data-id="${esc(l.id)}" aria-label="Usuń wpis historii">${ico('trash')}</button></div><div class="top-progress"><span>${l.exerciseCount} ćwiczeń</span><span>${l.usedTabata?'Z Tabatą':'Bez Tabaty'}</span></div></div>`).join(''):'<div class="card empty">'+ico('history')+'<strong>Historia jest pusta</strong><p>Po treningu wybierz „Zapisz jako wykonany”.</p></div>'}`;}
-function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.6</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Krótkie sygnały podczas zmian faz</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div>${btn('test-audio',`${ico('sound')} Test sygnału`,'secondary full')}</div>
+function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.7</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Trzy piknięcia, brzęczyk końca pracy, sygnał START i podwójny gong</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
 <div class="card"><h3>${ico('offline')} Dane tylko w telefonie</h3><p class="sub">Pamięć: ${esc(storageKind)}. Treningi, historia i kartoteki są zapisane lokalnie. Po instalacji oraz pierwszym otwarciu online aplikacja działa offline.</p><div class="row wrap">${btn('export',`${ico('download')} Eksportuj kopię`,'secondary')}${btn('import',`${ico('upload')} Przywróć kopię`,'secondary')}</div><input type="file" accept=".json,application/json" id="import-file" hidden><p class="footnote" style="margin:12px 0 0">Kopia zapasowa ma postać pliku JSON. Przechowuj go bezpiecznie — może zawierać dane osobowe podopiecznych.</p></div>
 <div class="card"><h3>${ico('info')} Instalacja na Androidzie</h3><p class="sub">W Chrome otwórz stronę aplikacji, wybierz menu ⋮ i „Dodaj do ekranu głównego” / „Zainstaluj aplikację”.</p>${installPrompt?btn('install',`${ico('download')} Zainstaluj SPARROW`,'full'):''}</div>
 <div class="card"><h3>${ico('shield')} Ważne podczas treningu</h3><p class="sub">Wbudowany timer odlicza czas niezależnie od odświeżania ekranu. Przy aktywnej Tabacie aplikacja próbuje zapobiegać wygaszeniu wyświetlacza. Dźwięk z jednoczesną muzyką i działanie po zablokowaniu telefonu trzeba przetestować na konkretnym Androidzie.</p></div><div class="footnote">SPARROW — prototyp 1.0 · brak konta, serwera i wysyłania danych. W tej wersji dane nie są szyfrowane dodatkowym hasłem aplikacji; korzystaj z blokady ekranu telefonu.</div>`;}
@@ -149,16 +149,65 @@ function setField(root,path,v){let [a,b]=path.split('.');if(b){root[a]||={};root
 function updateDraft(target){if(!draft)return;let path=target.dataset.draft;if(path){let v=target.type==='checkbox'?target.checked:target.value;if(target.type==='number')v=asNum(v,0,0,1800);setField(draft,path,v);}if(target.dataset.ex){let ex=draft.exercises.find(e=>e.id===target.dataset.ex);if(ex)ex[target.dataset.exKey]=target.value;}rememberRoute();}
 function saveSnapshot(p){data.logs.push({id:uid(),planId:p.id,name:p.name,type:p.type,clientId:p.clientId||'',exerciseCount:p.exercises.length,usedTabata:!!p.tabata?.enabled,timestamp:Date.now()});return save();}
 function downloadText(text,filename){let blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
-function timerBeep(kind='work'){
+// SPARROW Sound Pack 1 — built-in Web Audio, works without downloading audio files.
+// Individual cues are intentionally isolated to make swapping them for recorded sounds easy.
+function timerBeep(kind='work',delay=0){
  if(!data.settings.sound)return;
- try{audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const now=audioCtx.currentTime,fr=kind==='work'?850:kind==='rest'?520:kind==='done'?1000:690,amount=kind==='work'?2:kind==='done'?3:1;for(let i=0;i<amount;i++){let o=audioCtx.createOscillator(),g=audioCtx.createGain(),start=now+i*.17;o.type='sine';o.frequency.setValueAtTime(fr,start);g.gain.setValueAtTime(.0001,start);g.gain.exponentialRampToValueAtTime(.10,start+.015);g.gain.exponentialRampToValueAtTime(.0001,start+.125);o.connect(g).connect(audioCtx.destination);o.start(start);o.stop(start+.14);}}catch(e){console.warn('Sound unavailable:',e);}
- if(data.settings.vibration&&'vibrate' in navigator&&kind!=='count')navigator.vibrate(kind==='work'?[60,70,60]:[100]);
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio)return;
+  audioCtx ||= new Audio();
+  if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
+  const base=audioCtx.currentTime+.012+Math.max(0,delay);
+  const tone=(offset,frequency,duration,volume=.12,wave='sine',finalFrequency=null)=>{
+   const at=base+offset,stop=at+duration,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+   osc.type=wave;
+   osc.frequency.setValueAtTime(frequency,at);
+   if(finalFrequency)osc.frequency.exponentialRampToValueAtTime(finalFrequency,stop);
+   gain.gain.setValueAtTime(.0001,at);
+   gain.gain.exponentialRampToValueAtTime(volume,at+.014);
+   gain.gain.setValueAtTime(volume*.74,at+Math.min(duration*.45,.18));
+   gain.gain.exponentialRampToValueAtTime(.0001,stop);
+   osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(stop+.015);
+  };
+  const bell=(offset,freq)=>{
+   tone(offset,freq,.92,.12,'sine');
+   tone(offset,freq*2.02,.75,.055,'sine');
+   tone(offset,freq*2.75,.57,.026,'sine');
+  };
+  switch(kind){
+   case 'count':tone(0,880,.135,.15,'triangle');tone(0,1320,.105,.035);break;
+   case 'countdown':for(let i=0;i<3;i++){tone(i,880,.135,.15,'triangle');tone(i,1320,.105,.035);}break;
+   case 'work':tone(0,1250,.36,.16,'triangle');tone(0,1650,.28,.052);break;
+   case 'end':
+    tone(0,310,.7,.10,'sawtooth',235);
+    tone(0,465,.68,.085,'triangle',365);
+    tone(.035,940,.59,.04,'square',760);
+    break;
+   case 'rest':tone(0,590,.2,.12,'triangle');tone(.23,500,.23,.13,'triangle');break;
+   case 'between':tone(0,520,.25,.13,'triangle');tone(.29,440,.26,.13,'triangle');break;
+   case 'done':bell(0,770);bell(.43,990);break;
+   case 'prep':tone(0,740,.18,.09,'sine');break;
+   case 'demo':
+    // Last three seconds -> end of work -> rest -> new work -> final double gong.
+    for(let i=0;i<3;i++)tone(i,880,.135,.15,'triangle');
+    tone(3.02,310,.7,.10,'sawtooth',235);
+    tone(3.02,465,.68,.085,'triangle',365);
+    tone(3.76,590,.2,.12,'triangle');tone(3.99,500,.23,.13,'triangle');
+    tone(5,1250,.36,.16,'triangle');tone(5,1650,.28,.052);
+    bell(6,770);bell(6.43,990);
+    break;
+  }
+ }catch(e){console.warn('Sound unavailable:',e);}
+ if(!delay&&kind!=='count'&&kind!=='demo'&&data.settings.vibration&&'vibrate' in navigator){
+  navigator.vibrate(kind==='end'?[160]:kind==='done'?[110,110,110]:[70]);
+ }
 }
 async function requestWake(){if(!('wakeLock' in navigator)||wakeLock||document.hidden)return;try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null);}catch(e){/* Android/browser may deny */}}
 async function releaseWake(){try{await wakeLock?.release();}catch(e){}wakeLock=null;}
-function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();timerBeep('prep');requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
-function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;timerBeep(next.kind);render();}
- if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);if(remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;timerBeep('count');}let ph=timer.phases[timer.idx];let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
+function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();timerBeep(timer.phases[0].kind);requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
+function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'){timerBeep('end');timerBeep('done',.82);}else timerBeep('done');render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;if(prev.kind==='work'){timerBeep('end');timerBeep(next.kind,.82);}else timerBeep(next.kind);render();}
+ if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='work'&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;timerBeep('count');}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
 }
 function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;requestWake();}render();}
 function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;timerBeep(ph.kind);render();}
@@ -208,7 +257,8 @@ document.addEventListener('click',async e=>{let button=e.target.closest('[data-a
   case 'timer-backphase':timerMove(-1);break;
   case 'timer-exit':leaveTimer();break;
   case 'timer-complete':{let p=timer&&findPlan(timer.planId);if(p){await saveSnapshot(p);stopTimer();page='history';replaceRoute();render();notify('Trening zapisany w historii.');}break;}
-  case 'test-audio':timerBeep('work');notify('Wysłano sygnał testowy.');break;
+  case 'test-audio':timerBeep('demo');notify('Odtwarzanie: 3, 2, 1 → koniec pracy → przerwa → START → gong.');break;
+  case 'test-audio-cue':timerBeep(button.dataset.kind||'work');notify('Odtworzono sygnał testowy.');break;
   case 'export':downloadText(JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2),'SPARROW-kopia-'+today()+'.json');notify('Pobrano kopię zapasową.');break;
   case 'import':$('#import-file')?.click();break;
   case 'install':if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;render();}break;
