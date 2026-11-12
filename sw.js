@@ -1,6 +1,6 @@
-const CACHE = 'sparrow-v1.0.7';
+const CACHE = 'sparrow-v1.0.8';
 const FILES = [
-  './', './index.html', './styles.css?v=1.0.7', './app.js?v=1.0.7', './manifest.webmanifest',
+  './', './index.html', './styles.css?v=1.0.8', './app.js?v=1.0.8', './manifest.webmanifest',
   './assets/icon-192.svg', './assets/icon-512.svg', './assets/logo-wordmark.svg', './assets/sparrow-badge.svg'
 ];
 self.addEventListener('install', event => {
