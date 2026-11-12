@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.11. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.12. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -25,6 +25,8 @@ async function init(){
   data.settings ||= {sound:true,vibration:false};
   data.settings.countdownStyle ||= '8bit';
   data.settings.soundPack ||= 'recorded';
+  data.settings.prepSound ||= 'voice';
+  if(data.settings.prepSound==='voice')loadPrepVoice().catch(e=>console.info('Preparation voice will be unavailable:',e));
   if(data.settings.soundPack==='recorded')loadSparrowMix().catch(e=>console.info('SPARROW Mix will use classic fallback:',e));
   if(data.settings.soundPack==='retro')loadCountdown8bit().catch(e=>console.info('8-bit countdown will use fallback:',e));
   render();navigationReady=true;history.replaceState(routeState(0),'');
@@ -185,7 +187,7 @@ function clientView(){let c=findClient(clientId);if(!c)return `<div class="card 
 <div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} Nowy plan dla tej osoby`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
 <div class="section-title">WYKONANE TRENINGI · ${logs.length}</div>${logs.slice(0,10).map(l=>`<div class="card"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleDateString('pl-PL')}</div></div>`).join('')}${btn('delete-client',`${ico('trash')} Usuń kartotekę`,'minor full','data-id="'+esc(c.id)+'"')}`;}
 function historyView(){let arr=[...data.logs].sort((a,b)=>b.timestamp-a.timestamp);return `<div class="title-row"><div><div class="eyebrow">DZIENNIK TRENINGÓW</div><h1>Historia</h1><div class="sub">Treningi oznaczone jako wykonane</div></div></div>${arr.length?arr.map(l=>`<div class="card"><div class="row between"><div class="grow"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleString('pl-PL',{dateStyle:'medium',timeStyle:'short'})} · ${l.type==='group'?'grupowy':'indywidualny'}</div>${l.clientId?`<div class="sub">${esc(findClient(l.clientId)?.name||'podopieczny')}</div>`:''}</div><button class="mini-ico" data-action="delete-log" data-id="${esc(l.id)}" aria-label="Usuń wpis historii">${ico('trash')}</button></div><div class="top-progress"><span>${l.exerciseCount} ćwiczeń</span><span>${l.usedTabata?'Z Tabatą':'Bez Tabaty'}</span></div></div>`).join(''):'<div class="card empty">'+ico('history')+'<strong>Historia jest pusta</strong><p>Po treningu wybierz „Zapisz jako wykonany”.</p></div>'}`;}
-function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.11</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Wybierz nagrania SPARROW Mix, poprzedni 8-bit lub klasyczne piknięcia</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="field"><label for="sound-pack">Zestaw sygnałów</label><select id="sound-pack" data-setting="soundPack"><option value="recorded" ${data.settings.soundPack==='recorded'?'selected':''}>SPARROW Mix – nowe nagrania</option><option value="retro" ${data.settings.soundPack==='retro'?'selected':''}>8-bit – poprzednie odliczanie</option><option value="classic" ${data.settings.soundPack==='classic'?'selected':''}>Klasyczne piknięcia</option></select></div><p class="sub">SPARROW Mix: Sport Classic (3–2–1), Digital Pro (START), Power Signal (koniec pracy), gwizdek (przerwa) i gong (koniec treningu).</p><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
+function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.12</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Wybierz nagrania SPARROW Mix, poprzedni 8-bit lub klasyczne piknięcia</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="field"><label for="sound-pack">Zestaw sygnałów</label><select id="sound-pack" data-setting="soundPack"><option value="recorded" ${data.settings.soundPack==='recorded'?'selected':''}>SPARROW Mix – nowe nagrania</option><option value="retro" ${data.settings.soundPack==='retro'?'selected':''}>8-bit – poprzednie odliczanie</option><option value="classic" ${data.settings.soundPack==='classic'?'selected':''}>Klasyczne piknięcia</option></select></div><p class="sub">SPARROW Mix: Sport Classic (3–2–1), Digital Pro (START), Power Signal (koniec pracy), gwizdek (przerwa) i gong (koniec treningu).</p><div class="field"><label for="prep-sound">Dźwięk przygotowania</label><select id="prep-sound" data-setting="prepSound"><option value="voice" ${data.settings.prepSound!=='beep'?'selected':''}>Głosowe odliczanie 10–1 (angielski)</option><option value="beep" ${data.settings.prepSound==='beep'?'selected':''}>Krótki sygnał przygotowania</option></select></div><p class="sub">Głos odlicza ostatnie 10 sekund przygotowania. Ustaw w planie co najmniej 10 sekund.</p>${btn('test-prep-voice',`${ico('play')} Odsłuchaj przygotowanie 10–1`,'secondary full')}<div style="height:10px"></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
 <div class="card"><h3>${ico('offline')} Dane tylko w telefonie</h3><p class="sub">Pamięć: ${esc(storageKind)}. Treningi, historia i kartoteki są zapisane lokalnie. Po instalacji oraz pierwszym otwarciu online aplikacja działa offline.</p><div class="row wrap">${btn('export',`${ico('download')} Eksportuj kopię`,'secondary')}${btn('import',`${ico('upload')} Przywróć kopię`,'secondary')}</div><input type="file" accept=".json,application/json" id="import-file" hidden><p class="footnote" style="margin:12px 0 0">Kopia zapasowa ma postać pliku JSON. Przechowuj go bezpiecznie — może zawierać dane osobowe podopiecznych.</p></div>
 <div class="card"><h3>${ico('info')} Instalacja na Androidzie</h3><p class="sub">W Chrome otwórz stronę aplikacji, wybierz menu ⋮ i „Dodaj do ekranu głównego” / „Zainstaluj aplikację”.</p>${installPrompt?btn('install',`${ico('download')} Zainstaluj SPARROW`,'full'):''}</div>
 <div class="card"><h3>${ico('shield')} Ważne podczas treningu</h3><p class="sub">Wbudowany timer odlicza czas niezależnie od odświeżania ekranu. Przy aktywnej Tabacie aplikacja próbuje zapobiegać wygaszeniu wyświetlacza. Dźwięk z jednoczesną muzyką i działanie po zablokowaniu telefonu trzeba przetestować na konkretnym Androidzie.</p></div><div class="footnote">SPARROW — prototyp 1.0 · brak konta, serwera i wysyłania danych. W tej wersji dane nie są szyfrowane dodatkowym hasłem aplikacji; korzystaj z blokady ekranu telefonu.</div>`;}
@@ -304,6 +306,65 @@ function playRecordedSequence(kind,delay=0){
  return playRecordedCue(kind,delay);
 }
 
+
+// User-provided spoken countdown: "ten, nine, ... one", precisely aligned
+// to the last 10 seconds of the preparation phase.
+let prepVoiceBuffer=null,prepVoiceLoading=null,prepVoiceSource=null;
+function loadPrepVoice(){
+ if(prepVoiceBuffer)return Promise.resolve(prepVoiceBuffer);
+ if(prepVoiceLoading)return prepVoiceLoading;
+ const ctx=ensureAudioContext();
+ if(!ctx)return Promise.reject(Error('Przeglądarka nie obsługuje dźwięku.'));
+ prepVoiceLoading=fetch('./assets/prep-countdown-10s.ogg.b64').then(response=>{
+  if(!response.ok)throw Error('Nie można pobrać odliczania przygotowania.');
+  return response.text();
+ }).then(base64=>{
+  const text=atob(base64.trim()),bytes=new Uint8Array(text.length);
+  for(let i=0;i<text.length;i++)bytes[i]=text.charCodeAt(i);
+  return ctx.decodeAudioData(bytes.buffer);
+ }).then(buffer=>{prepVoiceBuffer=buffer;return buffer;}).catch(err=>{prepVoiceLoading=null;throw err;});
+ return prepVoiceLoading;
+}
+function stopPrepVoice(){
+ if(!prepVoiceSource)return;
+ try{prepVoiceSource.stop();}catch(e){}
+ prepVoiceSource=null;
+}
+function playPrepVoice(remainingMs=10000){
+ if(!data.settings.sound||data.settings.prepSound==='beep'||!prepVoiceBuffer)return false;
+ const ctx=ensureAudioContext();
+ if(!ctx)return false;
+ try{
+  if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+  stopPrepVoice();
+  const remaining=Math.min(10,Math.max(0,remainingMs/1000));
+  if(remaining<.15)return false;
+  // Offsetting the buffer allows pause/resume to continue with the correct number.
+  const offset=Math.max(0,10-remaining);
+  const duration=Math.min(remaining,prepVoiceBuffer.duration-offset);
+  if(duration<=0)return false;
+  const source=ctx.createBufferSource(),gain=ctx.createGain();
+  source.buffer=prepVoiceBuffer;
+  gain.gain.value=1;
+  source.connect(gain);gain.connect(ctx.destination);
+  source.onended=()=>{if(prepVoiceSource===source)prepVoiceSource=null;};
+  prepVoiceSource=source;
+  source.start(ctx.currentTime+.008,offset,duration);
+  return true;
+ }catch(err){console.warn('Preparation countdown unavailable:',err);return false;}
+}
+function cuePreparation(remainingMs,phaseSeconds){
+ if(!data.settings.sound)return;
+ if(phaseSeconds<10||data.settings.prepSound==='beep'){
+  timerBeep('prep');
+  if(timer)timer.prepVoiceStarted=true;
+  return;
+ }
+ // With >10 seconds of preparation the spoken countdown begins at 10s left.
+ if(remainingMs>10050){timerBeep('prep');return;}
+ if(playPrepVoice(remainingMs)&&timer)timer.prepVoiceStarted=true;
+}
+
 function timerBeep(kind='work',delay=0){
  if(!data.settings.sound)return;
  if(data.settings.soundPack==='recorded'&&playRecordedSequence(kind,delay)){if(!delay&&kind!=='count'&&kind!=='countdown'&&kind!=='demo'&&data.settings.vibration&&'vibrate' in navigator)navigator.vibrate(kind==='end'?[160]:kind==='done'?[110,110,110]:[70]);return;}
@@ -359,19 +420,19 @@ function timerBeep(kind='work',delay=0){
 }
 async function requestWake(){if(!('wakeLock' in navigator)||wakeLock||document.hidden)return;try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null);}catch(e){/* Android/browser may deny */}}
 async function releaseWake(){try{await wakeLock?.release();}catch(e){}wakeLock=null;}
-function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();timerBeep(timer.phases[0].kind);if(data.settings.soundPack==='recorded')loadSparrowMix().catch(()=>{});if(data.settings.soundPack==='retro')loadCountdown8bit().catch(()=>{});requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
-function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'&&!timer.countdownClipPlayed)timerBeep('end');timerBeep('done',prev.kind==='work'?(timer.countdownClipPlayed?.42:.82):0);render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;if(prev.kind==='work'){if(!timer.countdownClipPlayed)timerBeep('end');timerBeep(next.kind,timer.countdownClipPlayed?.42:.82);}else timerBeep(next.kind);timer.countdownClipPlayed=false;render();}
- if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='work'&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;if(remainSeconds===3&&data.settings.soundPack==='retro'&&playCountdown8bit()){timer.countdownClipPlayed=true;}else if(!timer.countdownClipPlayed){timerBeep('count');}}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
+function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false,prepVoiceStarted:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();ensureAudioContext()?.resume().catch(()=>{});if(timer.phases[0].kind==='prep')cuePreparation(timer.remainingMs,timer.phases[0].sec);else timerBeep(timer.phases[0].kind);if(data.settings.prepSound==='voice')loadPrepVoice().catch(()=>{});if(data.settings.soundPack==='recorded')loadSparrowMix().catch(()=>{});if(data.settings.soundPack==='retro')loadCountdown8bit().catch(()=>{});requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
+function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];if(prev.kind==='prep')stopPrepVoice();timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'&&!timer.countdownClipPlayed)timerBeep('end');timerBeep('done',prev.kind==='work'?(timer.countdownClipPlayed?.42:.82):0);render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;timer.prepVoiceStarted=false;if(prev.kind==='work'){if(!timer.countdownClipPlayed)timerBeep('end');timerBeep(next.kind,timer.countdownClipPlayed?.42:.82);}else if(next.kind==='prep')cuePreparation(next.sec*1000,next.sec);else timerBeep(next.kind);timer.countdownClipPlayed=false;render();}
+ if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='prep'&&ph.sec>=10&&!timer.prepVoiceStarted&&timer.remainingMs<=10000&&data.settings.prepSound!=='beep'&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;if(ph.kind==='work'&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;if(remainSeconds===3&&data.settings.soundPack==='retro'&&playCountdown8bit()){timer.countdownClipPlayed=true;}else if(!timer.countdownClipPlayed){timerBeep('count');}}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
 }
-function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;requestWake();}render();}
-function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;timerBeep(ph.kind);render();}
-function stopTimer(){clearInterval(ticker);stopCountdown8bit();stopRecordedCues();timer=null;releaseWake();}
+function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;stopPrepVoice();timer.prepVoiceStarted=false;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;if(timer.phases[timer.idx]?.kind==='prep'&&timer.phases[timer.idx].sec>=10&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;requestWake();}render();}
+function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;stopPrepVoice();timer.prepVoiceStarted=false;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;if(ph.kind==='prep')cuePreparation(timer.remainingMs,ph.sec);else timerBeep(ph.kind);render();}
+function stopTimer(){clearInterval(ticker);stopPrepVoice();stopCountdown8bit();stopRecordedCues();timer=null;releaseWake();}
 function leaveTimer(){if(timer&&timer.idx<timer.phases.length&&!confirm('Zakończyć działanie timera?'))return;const id=timer?.planId;stopTimer();if(navigationDepth>0){backTo('plan');return;}page='plan';planId=id;replaceRoute();render();}
 // Event delegation — views are re-rendered as independent screens.
 document.addEventListener('input',e=>{if(e.target?.matches('[data-draft],[data-ex]'))updateDraft(e.target);});
 document.addEventListener('change',async e=>{
  let t=e.target;if(t.matches('[data-draft]')){updateDraft(t);if(t.dataset.draft==='type'){addingClientInline=false;if(draft.type==='group')draft.clientId='';render();}else if(t.dataset.draft==='clientId'){addingClientInline=t.value==='__new__';if(addingClientInline)draft.clientId='';render();if(addingClientInline)$('#p-client-new')?.focus();}}
- if(t.matches('[data-setting]')){data.settings[t.dataset.setting]=t.type==='checkbox'?t.checked:t.value;await save();if(t.dataset.setting==='soundPack'){stopRecordedCues();stopCountdown8bit();if(t.value==='recorded')loadSparrowMix().catch(()=>notify('Nie udało się załadować nagrań. Pozostają sygnały zastępcze.'));if(t.value==='retro')loadCountdown8bit().catch(()=>notify('Nie udało się załadować 8-bit.'));}}
+ if(t.matches('[data-setting]')){data.settings[t.dataset.setting]=t.type==='checkbox'?t.checked:t.value;await save();if(t.dataset.setting==='prepSound'){stopPrepVoice();if(t.value==='voice')loadPrepVoice().catch(()=>notify('Nie udało się załadować głosowego odliczania.'));}if(t.dataset.setting==='soundPack'){stopRecordedCues();stopCountdown8bit();if(t.value==='recorded')loadSparrowMix().catch(()=>notify('Nie udało się załadować nagrań. Pozostają sygnały zastępcze.'));if(t.value==='retro')loadCountdown8bit().catch(()=>notify('Nie udało się załadować 8-bit.'));}}
  if(t.id==='import-file'&&t.files[0]){try{let contents=await t.files[0].text(),candidate=JSON.parse(contents);if(!candidate||!Array.isArray(candidate.plans)||!Array.isArray(candidate.clients)||!Array.isArray(candidate.logs)||candidate.version!==1)throw Error('Nieobsługiwany plik kopii.');if(!confirm('Przywrócenie kopii ZASTĄPI wszystkie obecne plany i kartoteki. Czy kontynuować?'))return;data={version:1,plans:candidate.plans,clients:candidate.clients,logs:candidate.logs,settings:candidate.settings||{sound:true,vibration:false}};data.settings.soundPack ||= 'recorded';await save();page='home';draft=null;modal=null;replaceRoute();render();notify('Kopia przywrócona.');}catch(err){alert('Nie udało się odczytać kopii: '+err.message);}finally{t.value='';}}
 });
 document.addEventListener('click',async e=>{let button=e.target.closest('[data-action]');if(!button)return;let a=button.dataset.action,id=button.dataset.id;try{
@@ -412,6 +473,7 @@ document.addEventListener('click',async e=>{let button=e.target.closest('[data-a
   case 'timer-exit':leaveTimer();break;
   case 'timer-complete':{let p=timer&&findPlan(timer.planId);if(p){await saveSnapshot(p);stopTimer();page='history';replaceRoute();render();notify('Trening zapisany w historii.');}break;}
   case 'test-countdown-8bit':{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});try{await loadCountdown8bit();if(playCountdown8bit())notify('Odtwarzanie przesłanego odliczania 8-bit.');else notify('Włącz sygnalizację dźwiękową.');}catch(err){alert('Nie udało się odtworzyć próbki: '+err.message);}break;}
+  case 'test-prep-voice':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});await loadPrepVoice();if(!data.settings.sound){notify('Najpierw włącz sygnalizację dźwiękową.');break;}if(data.settings.prepSound==='beep'){notify('Wybierz głosowe odliczanie w polu powyżej.');break;}stopPrepVoice();if(playPrepVoice(10000))notify('Przygotowanie: 10, 9, 8… 1.');}catch(err){alert('Nie udało się odtworzyć odliczania: '+err.message);}break;}
   case 'test-audio':{if(data.settings.soundPack==='recorded'){try{await loadSparrowMix();}catch(e){notify('Nagranie niedostępne, odtwarzam sygnały zastępcze.');}}timerBeep('demo');notify('Odtwarzanie: 3, 2, 1 → koniec pracy → przerwa → START → gong.');break;}
   case 'test-audio-cue':{let kind=button.dataset.kind||'work';if(data.settings.soundPack==='recorded'){try{await loadSparrowMix();}catch(e){notify('Nagranie niedostępne, odtwarzam sygnał zastępczy.');}}if(data.settings.soundPack==='retro'&&kind==='countdown'){try{await loadCountdown8bit();if(playCountdown8bit())break;}catch(e){}}timerBeep(kind);notify('Odtworzono sygnał testowy.');break;}
   case 'export':downloadText(JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2),'SPARROW-kopia-'+today()+'.json');notify('Pobrano kopię zapasową.');break;
