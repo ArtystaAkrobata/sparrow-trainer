@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.7. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.8. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -84,9 +84,57 @@ function backButton(dest='home'){return `<button class="back" data-action="back"
 function btn(action,title,cl='secondary',attrs=''){return `<button type="button" class="button ${cl}" data-action="${action}" ${attrs}>${title}</button>`;}
 function planMeta(p){return `${p.exercises.length} ćw. · ${p.tabata?.enabled?'Tabata':'bez Tabaty'}${p.demo?' · przykład':''}`;}
 function planCard(p){return `<div class="card compact"><button type="button" class="list-card" data-action="open-plan" data-id="${esc(p.id)}"><span class="list-icon">${ico(p.type==='group'?'users':'user')}</span><span class="grow"><h3>${esc(p.name||'Plan bez nazwy')}</h3><p>${esc(fmtDate(p.date))} · ${esc(planMeta(p))}${p.clientId?' · '+esc(findClient(p.clientId)?.name||'podopieczny'):''}</p></span><span class="arr">${ico('arrow')}</span></button></div>`;}
-function homeView(){let plans=[...data.plans].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3);let completed=data.logs.length;return `<div class="hero"><div class="hero-row"><img class="hero-badge" src="./assets/sparrow-badge.svg" alt="Godło Sparrow Sport Club"><div><div class="eyebrow" style="color:#abd9ff">SPARROW · EST. 2019</div><h1>PANEL TRENERA</h1><p>Treningi pod kontrolą. Bez internetu.</p></div></div><div class="hero-stat"><span>${ico('offline')} <span id="net-state">Tryb lokalny · gotowy offline</span></span><span>${ico('history')} ${completed} zakończonych</span></div></div>
-<div class="section-title">WYBIERZ RODZAJ TRENINGU</div><div class="tile-grid"><button class="tile" data-action="goto" data-page="group">${ico('users')}<span class="tile-arrow">${ico('arrow')}</span><strong>Trening grupowy</strong><small>Obwody, stanowiska i Tabata</small></button><button class="tile" data-action="goto" data-page="personal">${ico('user')}<span class="tile-arrow">${ico('arrow')}</span><strong>Trening indywidualny</strong><small>Plan i postępy podopiecznych</small></button></div>
-<div class="section-title">OSTATNIE PLANY <span>${btn('new-plan',`${ico('plus')} Nowy plan`,'minor','data-type="group"')}</span></div>${plans.length?plans.map(planCard).join(''):'<div class="card empty"><strong>Brak planów</strong><p>Utwórz pierwszy trening.</p></div>'}<div class="section-title">SZYBKI DOSTĘP</div><div class="tile-grid"><button class="tile" style="min-height:118px" data-action="goto" data-page="library">${ico('book')}<strong>Biblioteka</strong><small>Gotowe plany i kopiowanie</small></button><button class="tile" style="min-height:118px" data-action="goto" data-page="settings">${ico('settings')}<strong>Ustawienia</strong><small>Kopia zapasowa i dźwięki</small></button></div>`;}
+function homeRecentRow(p){
+ const person=p.clientId?findClient(p.clientId)?.name:null;
+ const detail=person||(p.type==='group'?`${p.exercises.length} stanowisk`:`${p.exercises.length} ćwiczeń`);
+ return `<div class="home-recent-row"><button type="button" class="home-recent-open" data-action="open-plan" data-id="${esc(p.id)}" aria-label="Otwórz plan: ${esc(p.name||'Plan bez nazwy')}">
+  <span class="home-recent-icon" aria-hidden="true">${ico(p.type==='group'?'users':'user')}</span>
+  <span class="home-recent-text"><strong>${esc(p.name||'Plan bez nazwy')}</strong><span>${esc(fmtDate(p.date))}<span class="home-meta-divider" aria-hidden="true"> / </span>${esc(detail)}</span></span>
+  <span class="home-recent-arrow" aria-hidden="true">${ico('arrow')}</span>
+ </button></div>`;
+}
+function homeView(){
+ const plans=[...data.plans].sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0)).slice(0,3);
+ const dateLabel=new Intl.DateTimeFormat('pl-PL',{day:'numeric',month:'short'}).format(new Date());
+ return `<section class="home-command" aria-labelledby="home-main-title">
+  <div class="home-command-copy">
+   <span class="home-command-caption">Sparrow Sport Club</span>
+   <h1 id="home-main-title">Zaplanuj.<span>Poprowadź.</span></h1>
+   <p>Zajęcia, plany i postępy. Wszystko pod ręką.</p>
+  </div>
+  <div class="home-command-emblem"><img src="./assets/sparrow-badge.svg" alt="Godło Sparrow Sport Club"></div>
+  <div class="home-command-bottom"><span class="home-online"><span class="home-online-dot" aria-hidden="true"></span><span id="net-state">Tryb lokalny · gotowy offline</span></span><time datetime="${today()}">${esc(dateLabel)}</time></div>
+ </section>
+ <section class="home-modes" aria-labelledby="home-mode-title">
+  <div class="home-section-heading"><h2 id="home-mode-title">Wybierz trening</h2></div>
+  <div class="home-mode home-mode-group">
+   <button class="home-mode-main" type="button" data-action="goto" data-page="group" aria-label="Otwórz trening grupowy">
+    <span class="home-mode-icon" aria-hidden="true">${ico('users')}</span>
+    <span class="home-mode-copy"><strong>Trening grupowy</strong><span>Obwody, stanowiska i Tabata</span></span>
+    <span class="home-mode-arrow" aria-hidden="true">${ico('arrow')}</span>
+   </button>
+   <div class="home-mode-foot">
+    <span class="home-stations" aria-hidden="true">${Array.from({length:8},()=>'<i></i>').join('')}</span>
+    <button class="home-mode-new" type="button" data-action="new-plan" data-type="group">${ico('plus')} Nowy plan</button>
+   </div>
+  </div>
+  <div class="home-mode home-mode-personal">
+   <button class="home-mode-main" type="button" data-action="goto" data-page="personal" aria-label="Otwórz trening indywidualny">
+    <span class="home-mode-icon" aria-hidden="true">${ico('user')}</span>
+    <span class="home-mode-copy"><strong>Trening indywidualny</strong><span>Plan i wyniki podopiecznego</span></span>
+    <span class="home-mode-arrow" aria-hidden="true">${ico('arrow')}</span>
+   </button>
+   <div class="home-mode-foot">
+    <span class="home-mode-foot-text">Historia i kartoteki osób</span>
+    <button class="home-mode-new" type="button" data-action="new-plan" data-type="personal">${ico('plus')} Nowy plan</button>
+   </div>
+  </div>
+ </section>
+ <section class="home-recent" aria-labelledby="home-recent-title">
+  <div class="home-section-heading"><h2 id="home-recent-title">Ostatnie plany</h2><button class="home-all" type="button" data-action="goto" data-page="library">Biblioteka ${ico('arrow')}</button></div>
+  ${plans.length?`<div class="home-recent-list">${plans.map(homeRecentRow).join('')}</div>`:`<p class="home-recent-empty">Nie ma jeszcze zapisanych planów. Wybierz rodzaj treningu i utwórz pierwszy plan.</p>`}
+ </section>`;
+}
 function listView(type){let group=type==='group',arr=data.plans.filter(p=>p.type===type).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return `<div class="title-row"><div><div class="eyebrow">SPARROW SPORT CLUB</div><h1>${group?'Trening grupowy':'Trening indywidualny'}</h1><div class="sub">${group?'Obwody i lista ćwiczeń':'Plany dopasowane do podopiecznych'}</div></div></div>${btn('new-plan',`${ico('plus')} Utwórz nowy plan`,'full','data-type="'+type+'"')}<div class="section-title">ZAPISANE PLANY · ${arr.length}</div>${arr.length?arr.map(planCard).join(''):`<div class="card empty">${ico('clipboard')}<strong>Nie ma jeszcze treningów</strong><p>Zapisz pierwszy plan, aby móc do niego wracać.</p></div>`}${!group?`<div class="section-title">PODOPIECZNI</div>${btn('goto',`${ico('users')} Otwórz kartoteki`,'secondary full','data-page="clients"')}`:''}`;}
 function libraryView(){let arr=[...data.plans].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));return `${backButton('home')}<div class="title-row"><div><div class="eyebrow">GOTOWE SZABLONY</div><h1>Biblioteka planów</h1><div class="sub">Otwieraj, kopiuj i modyfikuj treningi</div></div></div>${arr.length?arr.map(planCard).join(''):'<div class="card empty">Brak zapisanych planów.</div>'}<div class="footnote">Kopia planu jest niezależna od oryginału. Można zmienić datę i ćwiczenia bez utraty poprzedniej wersji.</div>`;}
 function phaseBox(title,desc,notes,ic){return `<div class="card"><div class="phase"><div class="phase-icon">${ico(ic)}</div><div class="grow"><h3>${esc(title)}</h3><p>${desc}</p></div>${ico('check')}</div>${notes?`<div class="bar"></div><p class="sub" style="margin-bottom:0;white-space:pre-wrap">${esc(notes)}</p>`:''}</div>`;}
@@ -133,7 +181,7 @@ function clientView(){let c=findClient(clientId);if(!c)return `<div class="card 
 <div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} Nowy plan dla tej osoby`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
 <div class="section-title">WYKONANE TRENINGI · ${logs.length}</div>${logs.slice(0,10).map(l=>`<div class="card"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleDateString('pl-PL')}</div></div>`).join('')}${btn('delete-client',`${ico('trash')} Usuń kartotekę`,'minor full','data-id="'+esc(c.id)+'"')}`;}
 function historyView(){let arr=[...data.logs].sort((a,b)=>b.timestamp-a.timestamp);return `<div class="title-row"><div><div class="eyebrow">DZIENNIK TRENINGÓW</div><h1>Historia</h1><div class="sub">Treningi oznaczone jako wykonane</div></div></div>${arr.length?arr.map(l=>`<div class="card"><div class="row between"><div class="grow"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleString('pl-PL',{dateStyle:'medium',timeStyle:'short'})} · ${l.type==='group'?'grupowy':'indywidualny'}</div>${l.clientId?`<div class="sub">${esc(findClient(l.clientId)?.name||'podopieczny')}</div>`:''}</div><button class="mini-ico" data-action="delete-log" data-id="${esc(l.id)}" aria-label="Usuń wpis historii">${ico('trash')}</button></div><div class="top-progress"><span>${l.exerciseCount} ćwiczeń</span><span>${l.usedTabata?'Z Tabatą':'Bez Tabaty'}</span></div></div>`).join(''):'<div class="card empty">'+ico('history')+'<strong>Historia jest pusta</strong><p>Po treningu wybierz „Zapisz jako wykonany”.</p></div>'}`;}
-function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.7</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Trzy piknięcia, brzęczyk końca pracy, sygnał START i podwójny gong</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
+function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.8</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Trzy piknięcia, brzęczyk końca pracy, sygnał START i podwójny gong</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
 <div class="card"><h3>${ico('offline')} Dane tylko w telefonie</h3><p class="sub">Pamięć: ${esc(storageKind)}. Treningi, historia i kartoteki są zapisane lokalnie. Po instalacji oraz pierwszym otwarciu online aplikacja działa offline.</p><div class="row wrap">${btn('export',`${ico('download')} Eksportuj kopię`,'secondary')}${btn('import',`${ico('upload')} Przywróć kopię`,'secondary')}</div><input type="file" accept=".json,application/json" id="import-file" hidden><p class="footnote" style="margin:12px 0 0">Kopia zapasowa ma postać pliku JSON. Przechowuj go bezpiecznie — może zawierać dane osobowe podopiecznych.</p></div>
 <div class="card"><h3>${ico('info')} Instalacja na Androidzie</h3><p class="sub">W Chrome otwórz stronę aplikacji, wybierz menu ⋮ i „Dodaj do ekranu głównego” / „Zainstaluj aplikację”.</p>${installPrompt?btn('install',`${ico('download')} Zainstaluj SPARROW`,'full'):''}</div>
 <div class="card"><h3>${ico('shield')} Ważne podczas treningu</h3><p class="sub">Wbudowany timer odlicza czas niezależnie od odświeżania ekranu. Przy aktywnej Tabacie aplikacja próbuje zapobiegać wygaszeniu wyświetlacza. Dźwięk z jednoczesną muzyką i działanie po zablokowaniu telefonu trzeba przetestować na konkretnym Androidzie.</p></div><div class="footnote">SPARROW — prototyp 1.0 · brak konta, serwera i wysyłania danych. W tej wersji dane nie są szyfrowane dodatkowym hasłem aplikacji; korzystaj z blokady ekranu telefonu.</div>`;}
