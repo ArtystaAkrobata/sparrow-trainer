@@ -7,16 +7,16 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 - treningi grupowe: plan ćwiczeń, stanowiska, liczba obwodów, Tabata opcjonalna;
 - treningi indywidualne: plan ćwiczeń, serie, powtórzenia, obciążenie;
 - rozgrzewka i rozciąganie jako proste, zwijane sekcje z opcjonalnymi notatkami;
-- timer: praca / zmiana stanowiska / przerwa między obwodami, pauza, przejście do poprzedniej/następnej fazy, krótkie sygnały dźwiękowe i opcjonalna wibracja;
+- timer: praca / zmiana stanowiska / przerwa między obwodami, pauza, przechodzenie między fazami oraz pięć zaakceptowanych nagrań obsługujących sześć typów sygnałów;
 - zapis planów, powielanie, historia wykonanych treningów;
 - podopieczni: kartoteki i indywidualne wpisy postępów;
-- eksport i przywrócenie lokalnych danych w JSON;
+- eksport i przywrócenie lokalnych danych w JSON dostępne w **Bibliotece planów**;
 - wygląd nawiązujący do przesłanych znaków Sparrow: granat, niebieski, sportowa typografia, cienie i wypukłe przyciski;
 - ekran startowy z **przykładowym** planem 8 stanowisk (można usunąć lub zmodyfikować).
 
 ## Ważne ograniczenia prototypu
 
-- **Dźwięk sygnałów z jednocześnie grającą playlistą** trzeba przetestować na konkretnym Androidzie. Sygnały generuje Web Audio, ale zachowanie Spotify i innych aplikacji zależy od Androida i przeglądarki. Nie gwarantujemy nieprzerywania muzyki.
+- **Odtwarzanie nagrań równolegle z muzyką** trzeba przetestować na konkretnym Androidzie. Aplikacja korzysta z Web Audio do odtwarzania lokalnych nagrań, ale współpraca ze Spotify zależy od telefonu i przeglądarki. Nie gwarantujemy nieprzerywania muzyki.
 - Po zablokowaniu ekranu lub ubiciu Chrome przez system dźwięki mogą nie odtwarzać się we właściwych chwilach. Timer liczy upływ czasu na podstawie zegara, ale pracy w tle nie należy uznawać za gwarantowaną. W aktywnym timerze aplikacja próbuje utrzymać ekran włączony (Screen Wake Lock).
 - Dane podopiecznych nie są w tej wersji szyfrowane osobnym hasłem. Używaj blokady Androida. Nie zapisuj danych szczególnie wrażliwych.
 - Usunięcie danych witryny/instalacji może usunąć wpisy. Wykonuj regularnie eksport kopii zapasowej.
@@ -49,4 +49,11 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 4. Włącz tryb samolotowy i sprawdź trening oraz zapis postępów.
 5. Utwórz kopię JSON, przywróć ją i zweryfikuj plan oraz kartotekę.
 
-Wersja: **1.0.0 — prototyp do testów, nie finalna aplikacja produkcyjna**.
+Wersja: **1.0.21 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
+
+### Panel Ustawienia v1.0.21
+
+- dźwięki globalnie: włącz/wyłącz;
+- wibracje: włącz/wyłącz, niezależnie od dźwięków;
+- sześć niezależnych przełączników: przygotowanie 10–1, głos GO!, odliczanie 3+1 na końcu ćwiczenia/zmiany stanowiska, tykanie zegara, odliczanie 10–1 między obwodami, fanfara końca treningu;
+- nie ma wyboru alternatywnych brzmień ani automatycznych sygnałów zastępczych. Wszystkie bieżące nagrania są zapisane lokalnie w cache PWA.
