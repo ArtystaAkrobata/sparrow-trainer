@@ -49,11 +49,16 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 4. Włącz tryb samolotowy i sprawdź trening oraz zapis postępów.
 5. Utwórz kopię JSON, przywróć ją i zweryfikuj plan oraz kartotekę.
 
-Wersja: **1.0.22 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
+Wersja: **1.0.23 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
 
-### Panel Ustawienia v1.0.22
+### Panel Ustawienia v1.0.23
 
 - dźwięki globalnie: włącz/wyłącz;
 - wibracje: włącz/wyłącz, niezależnie od dźwięków;
 - sześć niezależnych przełączników: przygotowanie 10–1, głos GO!, odliczanie 3+1 na końcu ćwiczenia/zmiany stanowiska, tykanie zegara, odliczanie 10–1 między obwodami, fanfara końca treningu;
 - nie ma wyboru alternatywnych brzmień ani automatycznych sygnałów zastępczych. Wszystkie bieżące nagrania są zapisane lokalnie w cache PWA.
+## Ikona aplikacji na telefon (v1.0.23)
+
+- Wybrana przez właściciela ikona SPARROW w granacie i błękicie, przygotowana w PNG 192 × 192, 512 × 512 i wersji maskowalnej 512 × 512 dla Androida.
+- Ikona instalacji jest przypisana w `manifest.webmanifest`; ikona dla iOS w `index.html` (180 × 180).
+- Jeśli aplikacja była już zainstalowana, Android może przez jakiś czas zachowywać starą ikonę. Przed ewentualnym odinstalowaniem należy **wyeksportować kopię zapasową JSON w Ustawieniach**, ponieważ usunięcie aplikacji może wyczyścić lokalne dane treningowe.

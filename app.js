@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.22. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.23. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
