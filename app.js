@@ -239,106 +239,12 @@ function downloadText(text,filename){let blob=new Blob([text],{type:'application
 // SPARROW Sound Pack 1 — built-in Web Audio, works without downloading audio files.
 // Individual cues are intentionally isolated to make swapping them for recorded sounds easy.
 
-// Original user-provided 8-bit countdown, stored as compact MP3 base64 for offline PWA.
-let countdown8bitBuffer=null,countdown8bitLoading=null,countdown8bitSource=null;
 function ensureAudioContext(){
  const Audio=window.AudioContext||window.webkitAudioContext;
  if(!Audio)return null;
  audioCtx ||= new Audio();
  return audioCtx;
 }
-function loadCountdown8bit(){
- if(countdown8bitBuffer)return Promise.resolve(countdown8bitBuffer);
- if(countdown8bitLoading)return countdown8bitLoading;
- const ctx=ensureAudioContext();
- if(!ctx)return Promise.reject(Error('Brak obsługi odtwarzania dźwięków.'));
- countdown8bitLoading=fetch('./assets/countdown-8bit.mp3.b64').then(r=>{
-  if(!r.ok)throw Error('Nie pobrano pliku odliczania.');
-  return r.text();
- }).then(base64=>{
-  const raw=atob(base64.trim()),bytes=new Uint8Array(raw.length);
-  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-  return ctx.decodeAudioData(bytes.buffer);
- }).then(buf=>{countdown8bitBuffer=buf;return buf;}).catch(err=>{countdown8bitLoading=null;throw err;});
- return countdown8bitLoading;
-}
-function playCountdown8bit(){
- if(!data.settings.sound||!countdown8bitBuffer)return false;
- try{
-  const ctx=ensureAudioContext();
-  if(!ctx)return false;
-  if(ctx.state==='suspended')ctx.resume().catch(()=>{});
-  const source=ctx.createBufferSource(),gain=ctx.createGain();
-  source.buffer=countdown8bitBuffer;gain.gain.value=1.7;
-  source.connect(gain);gain.connect(ctx.destination);
-  countdown8bitSource=source;
-  source.onended=()=>{if(countdown8bitSource===source)countdown8bitSource=null;};
-  source.start();
-  return true;
- }catch(err){console.warn('Countdown playback unavailable',err);return false;}
-}
-function stopCountdown8bit(){
- if(countdown8bitSource){try{countdown8bitSource.stop();}catch(e){}countdown8bitSource=null;}
-}
-
-
-// Recorded SPARROW Mix: five short extracts from user-supplied MP3s, decoded once.
-const SPARROW_MIX_CUES={count:[.06,.37],work:[.55,.98],end:[1.65,.93],rest:[2.70,.64],between:[2.70,.64],done:[3.46,1.86]};
-let sparrowMixBuffer=null,sparrowMixLoading=null;
-const sparrowMixSources=new Set();
-function loadSparrowMix(){
- if(sparrowMixBuffer)return Promise.resolve(sparrowMixBuffer);
- if(sparrowMixLoading)return sparrowMixLoading;
- const ctx=ensureAudioContext();
- if(!ctx)return Promise.reject(Error('Brak obsługi Web Audio.'));
- sparrowMixLoading=fetch('./assets/tabata-sparrow-mix.ogg.b64').then(r=>{
-  if(!r.ok)throw Error('Nie można pobrać zestawu dźwięków.');
-  return r.text();
- }).then(base64=>{
-  const raw=atob(base64.trim()),bytes=new Uint8Array(raw.length);
-  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-  return ctx.decodeAudioData(bytes.buffer);
- }).then(buffer=>{sparrowMixBuffer=buffer;return buffer;}).catch(err=>{sparrowMixLoading=null;throw err;});
- return sparrowMixLoading;
-}
-function playRecordedCue(kind,delay=0){
- const clip=SPARROW_MIX_CUES[kind];
- if(!data.settings.sound||!sparrowMixBuffer||!clip)return false;
- try{
-  const ctx=ensureAudioContext();
-  if(!ctx)return false;
-  if(ctx.state==='suspended')ctx.resume().catch(()=>{});
-  const source=ctx.createBufferSource(),gain=ctx.createGain();
-  source.buffer=sparrowMixBuffer;
-  gain.gain.value=.84;
-  source.connect(gain);gain.connect(ctx.destination);
-  sparrowMixSources.add(source);
-  source.onended=()=>sparrowMixSources.delete(source);
-  source.start(ctx.currentTime+.025+Math.max(0,delay),clip[0],clip[1]);
-  return true;
- }catch(err){console.warn('Recorded cue unavailable:',err);return false;}
-}
-function stopRecordedCues(){
- for(const source of sparrowMixSources){try{source.stop();}catch(e){}}
- sparrowMixSources.clear();
-}
-function playRecordedSequence(kind,delay=0){
- if(!sparrowMixBuffer)return false;
- if(kind==='countdown'){
-  for(let i=0;i<3;i++)playRecordedCue('count',delay+i);
-  return true;
- }
- if(kind==='demo'){
-  for(let i=0;i<3;i++)playRecordedCue('count',delay+i);
-  playRecordedCue('end',delay+3);
-  playRecordedCue('rest',delay+4.1);
-  playRecordedCue('work',delay+5.3);
-  playRecordedCue('done',delay+6.6);
-  return true;
- }
- return playRecordedCue(kind,delay);
-}
-
 
 // User-provided spoken countdown: "ten, nine, ... one", precisely aligned
 // to the last 10 seconds of the preparation phase.
@@ -364,7 +270,7 @@ function stopPrepVoice(){
  prepVoiceSource=null;
 }
 function playPrepVoice(remainingMs=10000,betweenRounds=false){
- if(!data.settings.sound||(!betweenRounds&&data.settings.prepSound==='beep')||!prepVoiceBuffer)return false;
+ if(!data.settings.sound||!(betweenRounds?data.settings.cueBetween:data.settings.cuePrep)||!prepVoiceBuffer)return false;
  const ctx=ensureAudioContext();
  if(!ctx)return false;
  try{
@@ -387,17 +293,9 @@ function playPrepVoice(remainingMs=10000,betweenRounds=false){
  }catch(err){console.warn('Preparation countdown unavailable:',err);return false;}
 }
 function cuePreparation(remainingMs,phaseSeconds){
- if(!data.settings.sound)return;
- if(phaseSeconds<10||data.settings.prepSound==='beep'){
-  timerBeep('prep');
-  if(timer)timer.prepVoiceStarted=true;
-  return;
- }
- // With >10 seconds of preparation the spoken countdown begins at 10s left.
- if(remainingMs>10050){timerBeep('prep');return;}
+ if(!data.settings.sound||!data.settings.cuePrep||remainingMs>10050)return;
  if(playPrepVoice(remainingMs)&&timer)timer.prepVoiceStarted=true;
 }
-
 
 // User-approved end-of-exercise countdown: 3 short beeps + 1 long beep.
 // Starts when exactly 3 seconds of work remain; the long beep lands on 0.
@@ -423,7 +321,7 @@ function stopEndWorkAudio(){
  endWorkSource=null;
 }
 function playEndWorkAudio(remainingMs=3000){
- if(!data.settings.sound||data.settings.endWorkSound==='previous'||!endWorkBuffer)return false;
+ if(!data.settings.sound||!data.settings.cueEnd||!endWorkBuffer)return false;
  const ctx=ensureAudioContext();
  if(!ctx)return false;
  const remaining=Math.min(3,Math.max(0,remainingMs/1000));
@@ -464,7 +362,7 @@ function loadGoSound(){
  return goSoundLoading;
 }
 function playGoSound(delay=0){
- if(!data.settings.sound||data.settings.startSound==='previous'||!goSoundBuffer)return false;
+ if(!data.settings.sound||!data.settings.cueGo||!goSoundBuffer)return false;
  try{
   const ctx=ensureAudioContext();
   if(!ctx)return false;
@@ -517,7 +415,7 @@ function stopStationTicks(){
  }catch(e){try{source.stop();}catch(_){}}
 }
 function playStationTicks(delay=0,preview=false){
- if(!data.settings.sound||!stationTickBuffer)return false;
+ if(!data.settings.sound||!data.settings.cueTicks||!stationTickBuffer)return false;
  if(!preview&&(!timer||!timer.running||!['rest','between'].includes(timer.phases[timer.idx]?.kind)))return false;
  const ctx=ensureAudioContext();
  if(!ctx)return false;
@@ -543,12 +441,12 @@ function cueStationTicks(delay=0,remainingMs=null){
  const remaining=remainingMs??Math.max(0,Math.ceil((timer?.deadline??0)-Date.now()));
  const kind=timer?.phases[timer.idx]?.kind;
  const cutoff=kind==='between'?10000:3000;
- if(!['rest','between'].includes(kind)||remaining<=cutoff||!data.settings.sound)return;
+ if(!['rest','between'].includes(kind)||remaining<=cutoff||!data.settings.sound||!data.settings.cueTicks)return;
  if(playStationTicks(delay))return;
  loadStationTicks().then(()=>{
   const currentKind=timer?.phases[timer.idx]?.kind;
   const currentCutoff=currentKind==='between'?10000:3000;
-  if(timer?.running&&['rest','between'].includes(currentKind)&&timer.deadline-Date.now()>currentCutoff&&!stationTickSource)playStationTicks();
+  if(timer?.running&&data.settings.sound&&data.settings.cueTicks&&['rest','between'].includes(currentKind)&&timer.deadline-Date.now()>currentCutoff&&!stationTickSource)playStationTicks();
  }).catch(e=>console.info('Clock ticks unavailable:',e));
 }
 
@@ -573,7 +471,7 @@ function loadFinishSound(){
  return finishSoundLoading;
 }
 function playFinishSound(delay=0){
- if(!data.settings.sound||data.settings.finishSound==='previous'||!finishSoundBuffer)return false;
+ if(!data.settings.sound||!data.settings.cueFinish||!finishSoundBuffer)return false;
  const ctx=ensureAudioContext();
  if(!ctx)return false;
  try{
@@ -592,64 +490,19 @@ function stopFinishSound(){
  finishSoundSources.clear();
 }
 
+function vibrateTimer(kind){
+ if(!data.settings.vibration||!('vibrate' in navigator))return;
+ try{navigator.vibrate(kind==='done'?[110,110,110]:kind==='end'?[160]:[70]);}catch(e){}
+}
 function timerBeep(kind='work',delay=0){
+ if((kind==='work'||kind==='done')&&delay===0)vibrateTimer(kind);
  if(!data.settings.sound)return;
- if(kind==='done'&&playFinishSound(delay)){if(!delay&&data.settings.vibration&&'vibrate' in navigator)navigator.vibrate([110,110,110]);return;}
- if(kind==='work'&&playGoSound(delay)){if(!delay&&data.settings.vibration&&'vibrate' in navigator)navigator.vibrate(70);return;}
- if(data.settings.soundPack==='recorded'&&playRecordedSequence(kind,delay)){if(!delay&&kind!=='count'&&kind!=='countdown'&&kind!=='demo'&&data.settings.vibration&&'vibrate' in navigator)navigator.vibrate(kind==='end'?[160]:kind==='done'?[110,110,110]:[70]);return;}
- try{
-  const Audio=window.AudioContext||window.webkitAudioContext;
-  if(!Audio)return;
-  audioCtx ||= new Audio();
-  if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
-  const base=audioCtx.currentTime+.012+Math.max(0,delay);
-  const tone=(offset,frequency,duration,volume=.12,wave='sine',finalFrequency=null)=>{
-   const at=base+offset,stop=at+duration,osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-   osc.type=wave;
-   osc.frequency.setValueAtTime(frequency,at);
-   if(finalFrequency)osc.frequency.exponentialRampToValueAtTime(finalFrequency,stop);
-   gain.gain.setValueAtTime(.0001,at);
-   gain.gain.exponentialRampToValueAtTime(volume,at+.014);
-   gain.gain.setValueAtTime(volume*.74,at+Math.min(duration*.45,.18));
-   gain.gain.exponentialRampToValueAtTime(.0001,stop);
-   osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(stop+.015);
-  };
-  const bell=(offset,freq)=>{
-   tone(offset,freq,.92,.12,'sine');
-   tone(offset,freq*2.02,.75,.055,'sine');
-   tone(offset,freq*2.75,.57,.026,'sine');
-  };
-  switch(kind){
-   case 'count':tone(0,880,.135,.15,'triangle');tone(0,1320,.105,.035);break;
-   case 'countdown':for(let i=0;i<3;i++){tone(i,880,.135,.15,'triangle');tone(i,1320,.105,.035);}break;
-   case 'work':tone(0,1250,.36,.16,'triangle');tone(0,1650,.28,.052);break;
-   case 'end':
-    tone(0,310,.7,.10,'sawtooth',235);
-    tone(0,465,.68,.085,'triangle',365);
-    tone(.035,940,.59,.04,'square',760);
-    break;
-   case 'rest':tone(0,590,.2,.12,'triangle');tone(.23,500,.23,.13,'triangle');break;
-   case 'between':tone(0,520,.25,.13,'triangle');tone(.29,440,.26,.13,'triangle');break;
-   case 'done':bell(0,770);bell(.43,990);break;
-   case 'prep':tone(0,740,.18,.09,'sine');break;
-   case 'demo':
-    // Last three seconds -> end of work -> rest -> new work -> final double gong.
-    for(let i=0;i<3;i++)tone(i,880,.135,.15,'triangle');
-    tone(3.02,310,.7,.10,'sawtooth',235);
-    tone(3.02,465,.68,.085,'triangle',365);
-    tone(3.76,590,.2,.12,'triangle');tone(3.99,500,.23,.13,'triangle');
-    tone(5,1250,.36,.16,'triangle');tone(5,1650,.28,.052);
-    bell(6,770);bell(6.43,990);
-    break;
-  }
- }catch(e){console.warn('Sound unavailable:',e);}
- if(!delay&&kind!=='count'&&kind!=='demo'&&data.settings.vibration&&'vibrate' in navigator){
-  navigator.vibrate(kind==='end'?[160]:kind==='done'?[110,110,110]:[70]);
- }
+ if(kind==='work')playGoSound(delay);
+ if(kind==='done')playFinishSound(delay);
 }
 async function requestWake(){if(!('wakeLock' in navigator)||wakeLock||document.hidden)return;try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null);}catch(e){/* Android/browser may deny */}}
 async function releaseWake(){try{await wakeLock?.release();}catch(e){}wakeLock=null;}
-function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false,prepVoiceStarted:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();ensureAudioContext()?.resume().catch(()=>{});if(timer.phases[0].kind==='prep')cuePreparation(timer.remainingMs,timer.phases[0].sec);else timerBeep(timer.phases[0].kind);if(data.settings.prepSound==='voice')loadPrepVoice().catch(()=>{});if(data.settings.endWorkSound==='game')loadEndWorkAudio().catch(()=>{});if(data.settings.startSound!=='previous')loadGoSound().catch(()=>{});if(data.settings.finishSound==='goodresult')loadFinishSound().catch(()=>{});loadStationTicks().catch(()=>{});if(data.settings.soundPack==='recorded')loadSparrowMix().catch(()=>{});if(data.settings.soundPack==='retro')loadCountdown8bit().catch(()=>{});requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
+function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false,prepVoiceStarted:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();ensureAudioContext()?.resume().catch(()=>{});if(timer.phases[0].kind==='prep')cuePreparation(timer.remainingMs,timer.phases[0].sec);else timerBeep(timer.phases[0].kind);if(data.settings.sound){if(data.settings.cuePrep||data.settings.cueBetween)loadPrepVoice().catch(()=>{});if(data.settings.cueEnd)loadEndWorkAudio().catch(()=>{});if(data.settings.cueGo)loadGoSound().catch(()=>{});if(data.settings.cueFinish)loadFinishSound().catch(()=>{});if(data.settings.cueTicks)loadStationTicks().catch(()=>{});}requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
 function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];if(prev.kind==='prep'||prev.kind==='between')stopPrepVoice();if(prev.kind==='rest'||prev.kind==='between')stopStationTicks();timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'&&!timer.countdownClipPlayed)timerBeep('end');timerBeep('done',prev.kind==='work'?.82:0);render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;timer.prepVoiceStarted=false;if(prev.kind==='work'||prev.kind==='rest'){if(!timer.countdownClipPlayed)timerBeep('end');if(next.kind==='rest'||(next.kind==='between'&&next.sec>10))cueStationTicks(.82,next.sec*1000);else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}else timerBeep(next.kind,.82);}else if(next.kind==='rest'||(next.kind==='between'&&next.sec>10)){cueStationTicks(0,next.sec*1000);}else if(next.kind==='prep')cuePreparation(next.sec*1000,next.sec);else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}else timerBeep(next.kind);timer.countdownClipPlayed=false;render();}
  if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='prep'&&ph.sec>=10&&!timer.prepVoiceStarted&&timer.remainingMs<=10000&&data.settings.prepSound!=='beep'&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;if(ph.kind==='between'&&timer.remainingMs<=10000){stopStationTicks();if(!timer.prepVoiceStarted&&playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;}if(ph.kind==='rest'&&timer.remainingMs<=3000)stopStationTicks();if((ph.kind==='work'||ph.kind==='rest')&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;if(remainSeconds===3&&data.settings.endWorkSound==='game'&&playEndWorkAudio(timer.remainingMs)){timer.countdownClipPlayed=true;}else if(remainSeconds===3&&data.settings.endWorkSound!=='game'&&data.settings.soundPack==='retro'&&playCountdown8bit()){timer.countdownClipPlayed=true;}else if(!timer.countdownClipPlayed){timerBeep('count');}}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
 }
