@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.8. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.9. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -23,6 +23,8 @@ async function init(){
   try{dbHandle=await openDB();let d=await dbGet('data');if(d&&Array.isArray(d.plans)&&Array.isArray(d.clients)&&Array.isArray(d.logs)){data=d;}else{data=blankDB();data.plans=[demoPlan()];await save();}}
   catch(e){console.warn('IndexedDB unavailable, using local storage',e);storageKind='localStorage';try{const raw=localStorage.getItem('sparrow-local-fallback');if(raw){const obj=JSON.parse(raw);if(obj&&Array.isArray(obj.plans)&&Array.isArray(obj.clients)&&Array.isArray(obj.logs))data=obj;else throw Error('invalid');}else{data=blankDB();data.plans=[demoPlan()];await save();}}catch(e2){data=blankDB();data.plans=[demoPlan()];}}
   data.settings ||= {sound:true,vibration:false};
+  data.settings.countdownStyle ||= '8bit';
+  if(data.settings.countdownStyle==='8bit')loadCountdown8bit().catch(e=>console.info('Countdown sound will use fallback:',e));
   render();navigationReady=true;history.replaceState(routeState(0),'');
   if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(e=>console.info('Offline install unavailable:',e));
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;if(page==='settings')render();});
@@ -181,7 +183,7 @@ function clientView(){let c=findClient(clientId);if(!c)return `<div class="card 
 <div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} Nowy plan dla tej osoby`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
 <div class="section-title">WYKONANE TRENINGI · ${logs.length}</div>${logs.slice(0,10).map(l=>`<div class="card"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleDateString('pl-PL')}</div></div>`).join('')}${btn('delete-client',`${ico('trash')} Usuń kartotekę`,'minor full','data-id="'+esc(c.id)+'"')}`;}
 function historyView(){let arr=[...data.logs].sort((a,b)=>b.timestamp-a.timestamp);return `<div class="title-row"><div><div class="eyebrow">DZIENNIK TRENINGÓW</div><h1>Historia</h1><div class="sub">Treningi oznaczone jako wykonane</div></div></div>${arr.length?arr.map(l=>`<div class="card"><div class="row between"><div class="grow"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleString('pl-PL',{dateStyle:'medium',timeStyle:'short'})} · ${l.type==='group'?'grupowy':'indywidualny'}</div>${l.clientId?`<div class="sub">${esc(findClient(l.clientId)?.name||'podopieczny')}</div>`:''}</div><button class="mini-ico" data-action="delete-log" data-id="${esc(l.id)}" aria-label="Usuń wpis historii">${ico('trash')}</button></div><div class="top-progress"><span>${l.exerciseCount} ćwiczeń</span><span>${l.usedTabata?'Z Tabatą':'Bez Tabaty'}</span></div></div>`).join(''):'<div class="card empty">'+ico('history')+'<strong>Historia jest pusta</strong><p>Po treningu wybierz „Zapisz jako wykonany”.</p></div>'}`;}
-function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.8</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Trzy piknięcia, brzęczyk końca pracy, sygnał START i podwójny gong</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
+function settingsView(){return `<div class="title-row"><div><div class="eyebrow">SPARROW v1.0.9</div><h1>Ustawienia</h1><div class="sub">Działanie offline i kontrola danych</div></div></div><div class="card"><h3>${ico('sound')} Dźwięki Tabaty</h3><div class="switch-row"><div class="grow"><strong>Sygnalizacja dźwiękowa</strong><div class="sub">Trzy piknięcia, brzęczyk końca pracy, sygnał START i podwójny gong</div></div><input type="checkbox" class="switch" data-setting="sound" aria-label="Włącz dźwięki" ${data.settings.sound?'checked':''}></div><div class="switch-row"><div class="grow"><strong>Wibracja</strong><div class="sub">Jeżeli Android i przeglądarka pozwalają</div></div><input type="checkbox" class="switch" data-setting="vibration" aria-label="Włącz wibracje" ${data.settings.vibration?'checked':''}></div><div class="field"><label for="countdown-style">Odliczanie ostatnich 3 sekund pracy</label><select id="countdown-style" data-setting="countdownStyle"><option value="8bit" ${data.settings.countdownStyle!=='classic'?'selected':''}>8-bit – przesłane nagranie (3 + sygnał końcowy)</option><option value="classic" ${data.settings.countdownStyle==='classic'?'selected':''}>Dotychczasowe piknięcia SPARROW</option></select></div>${btn('test-countdown-8bit',`${ico('play')} Odsłuchaj przesłany dźwięk`,'secondary full')}<div style="height:13px"></div><div class="section-title">ODSŁUCH SYGNAŁÓW</div><p class="sub">Tymczasowy zestaw SPARROW. Wszystkie dźwięki można później wymienić.</p><div class="two-fields">${btn('test-audio-cue',`${ico('sound')} 3, 2, 1`,'secondary','data-kind="countdown"')}${btn('test-audio-cue',`${ico('sound')} START`,'secondary','data-kind="work"')}${btn('test-audio-cue',`${ico('sound')} Koniec pracy`,'secondary','data-kind="end"')}${btn('test-audio-cue',`${ico('sound')} Przerwa`,'secondary','data-kind="rest"')}${btn('test-audio-cue',`${ico('sound')} Koniec treningu`,'secondary','data-kind="done"')}</div><div style="height:10px"></div>${btn('test-audio',`${ico('play')} Odsłuchaj całą sekwencję`,'full')}</div>
 <div class="card"><h3>${ico('offline')} Dane tylko w telefonie</h3><p class="sub">Pamięć: ${esc(storageKind)}. Treningi, historia i kartoteki są zapisane lokalnie. Po instalacji oraz pierwszym otwarciu online aplikacja działa offline.</p><div class="row wrap">${btn('export',`${ico('download')} Eksportuj kopię`,'secondary')}${btn('import',`${ico('upload')} Przywróć kopię`,'secondary')}</div><input type="file" accept=".json,application/json" id="import-file" hidden><p class="footnote" style="margin:12px 0 0">Kopia zapasowa ma postać pliku JSON. Przechowuj go bezpiecznie — może zawierać dane osobowe podopiecznych.</p></div>
 <div class="card"><h3>${ico('info')} Instalacja na Androidzie</h3><p class="sub">W Chrome otwórz stronę aplikacji, wybierz menu ⋮ i „Dodaj do ekranu głównego” / „Zainstaluj aplikację”.</p>${installPrompt?btn('install',`${ico('download')} Zainstaluj SPARROW`,'full'):''}</div>
 <div class="card"><h3>${ico('shield')} Ważne podczas treningu</h3><p class="sub">Wbudowany timer odlicza czas niezależnie od odświeżania ekranu. Przy aktywnej Tabacie aplikacja próbuje zapobiegać wygaszeniu wyświetlacza. Dźwięk z jednoczesną muzyką i działanie po zablokowaniu telefonu trzeba przetestować na konkretnym Androidzie.</p></div><div class="footnote">SPARROW — prototyp 1.0 · brak konta, serwera i wysyłania danych. W tej wersji dane nie są szyfrowane dodatkowym hasłem aplikacji; korzystaj z blokady ekranu telefonu.</div>`;}
@@ -199,6 +201,49 @@ function saveSnapshot(p){data.logs.push({id:uid(),planId:p.id,name:p.name,type:p
 function downloadText(text,filename){let blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
 // SPARROW Sound Pack 1 — built-in Web Audio, works without downloading audio files.
 // Individual cues are intentionally isolated to make swapping them for recorded sounds easy.
+
+// Original user-provided 8-bit countdown, stored as compact MP3 base64 for offline PWA.
+let countdown8bitBuffer=null,countdown8bitLoading=null,countdown8bitSource=null;
+function ensureAudioContext(){
+ const Audio=window.AudioContext||window.webkitAudioContext;
+ if(!Audio)return null;
+ audioCtx ||= new Audio();
+ return audioCtx;
+}
+function loadCountdown8bit(){
+ if(countdown8bitBuffer)return Promise.resolve(countdown8bitBuffer);
+ if(countdown8bitLoading)return countdown8bitLoading;
+ const ctx=ensureAudioContext();
+ if(!ctx)return Promise.reject(Error('Brak obsługi odtwarzania dźwięków.'));
+ countdown8bitLoading=fetch('./assets/countdown-8bit.mp3.b64').then(r=>{
+  if(!r.ok)throw Error('Nie pobrano pliku odliczania.');
+  return r.text();
+ }).then(base64=>{
+  const raw=atob(base64.trim()),bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  return ctx.decodeAudioData(bytes.buffer);
+ }).then(buf=>{countdown8bitBuffer=buf;return buf;}).catch(err=>{countdown8bitLoading=null;throw err;});
+ return countdown8bitLoading;
+}
+function playCountdown8bit(){
+ if(!data.settings.sound||!countdown8bitBuffer)return false;
+ try{
+  const ctx=ensureAudioContext();
+  if(!ctx)return false;
+  if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+  const source=ctx.createBufferSource(),gain=ctx.createGain();
+  source.buffer=countdown8bitBuffer;gain.gain.value=1.7;
+  source.connect(gain);gain.connect(ctx.destination);
+  countdown8bitSource=source;
+  source.onended=()=>{if(countdown8bitSource===source)countdown8bitSource=null;};
+  source.start();
+  return true;
+ }catch(err){console.warn('Countdown playback unavailable',err);return false;}
+}
+function stopCountdown8bit(){
+ if(countdown8bitSource){try{countdown8bitSource.stop();}catch(e){}countdown8bitSource=null;}
+}
+
 function timerBeep(kind='work',delay=0){
  if(!data.settings.sound)return;
  try{
@@ -253,19 +298,19 @@ function timerBeep(kind='work',delay=0){
 }
 async function requestWake(){if(!('wakeLock' in navigator)||wakeLock||document.hidden)return;try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null);}catch(e){/* Android/browser may deny */}}
 async function releaseWake(){try{await wakeLock?.release();}catch(e){}wakeLock=null;}
-function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();timerBeep(timer.phases[0].kind);requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
-function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'){timerBeep('end');timerBeep('done',.82);}else timerBeep('done');render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;if(prev.kind==='work'){timerBeep('end');timerBeep(next.kind,.82);}else timerBeep(next.kind);render();}
- if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='work'&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;timerBeep('count');}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
+function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();timerBeep(timer.phases[0].kind);if(data.settings.countdownStyle==='8bit')loadCountdown8bit().catch(()=>{});requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
+function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'&&!timer.countdownClipPlayed)timerBeep('end');timerBeep('done',prev.kind==='work'?(timer.countdownClipPlayed?.42:.82):0);render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;if(prev.kind==='work'){if(!timer.countdownClipPlayed)timerBeep('end');timerBeep(next.kind,timer.countdownClipPlayed?.42:.82);}else timerBeep(next.kind);timer.countdownClipPlayed=false;render();}
+ if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='work'&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;if(remainSeconds===3&&data.settings.countdownStyle==='8bit'&&playCountdown8bit()){timer.countdownClipPlayed=true;}else if(!timer.countdownClipPlayed){timerBeep('count');}}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
 }
-function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;requestWake();}render();}
-function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;timerBeep(ph.kind);render();}
-function stopTimer(){clearInterval(ticker);timer=null;releaseWake();}
+function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;stopCountdown8bit();timer.countdownClipPlayed=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;requestWake();}render();}
+function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;stopCountdown8bit();timer.countdownClipPlayed=false;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;timerBeep(ph.kind);render();}
+function stopTimer(){clearInterval(ticker);stopCountdown8bit();timer=null;releaseWake();}
 function leaveTimer(){if(timer&&timer.idx<timer.phases.length&&!confirm('Zakończyć działanie timera?'))return;const id=timer?.planId;stopTimer();if(navigationDepth>0){backTo('plan');return;}page='plan';planId=id;replaceRoute();render();}
 // Event delegation — views are re-rendered as independent screens.
 document.addEventListener('input',e=>{if(e.target?.matches('[data-draft],[data-ex]'))updateDraft(e.target);});
 document.addEventListener('change',async e=>{
  let t=e.target;if(t.matches('[data-draft]')){updateDraft(t);if(t.dataset.draft==='type'){addingClientInline=false;if(draft.type==='group')draft.clientId='';render();}else if(t.dataset.draft==='clientId'){addingClientInline=t.value==='__new__';if(addingClientInline)draft.clientId='';render();if(addingClientInline)$('#p-client-new')?.focus();}}
- if(t.matches('[data-setting]')){data.settings[t.dataset.setting]=t.checked;await save();}
+ if(t.matches('[data-setting]')){data.settings[t.dataset.setting]=t.type==='checkbox'?t.checked:t.value;await save();if(t.dataset.setting==='countdownStyle'&&t.value==='8bit'){loadCountdown8bit().catch(()=>notify('Nie udało się załadować nagrania. Pozostaną zwykłe piknięcia.'));}}
  if(t.id==='import-file'&&t.files[0]){try{let contents=await t.files[0].text(),candidate=JSON.parse(contents);if(!candidate||!Array.isArray(candidate.plans)||!Array.isArray(candidate.clients)||!Array.isArray(candidate.logs)||candidate.version!==1)throw Error('Nieobsługiwany plik kopii.');if(!confirm('Przywrócenie kopii ZASTĄPI wszystkie obecne plany i kartoteki. Czy kontynuować?'))return;data={version:1,plans:candidate.plans,clients:candidate.clients,logs:candidate.logs,settings:candidate.settings||{sound:true,vibration:false}};await save();page='home';draft=null;modal=null;replaceRoute();render();notify('Kopia przywrócona.');}catch(err){alert('Nie udało się odczytać kopii: '+err.message);}finally{t.value='';}}
 });
 document.addEventListener('click',async e=>{let button=e.target.closest('[data-action]');if(!button)return;let a=button.dataset.action,id=button.dataset.id;try{
@@ -305,6 +350,7 @@ document.addEventListener('click',async e=>{let button=e.target.closest('[data-a
   case 'timer-backphase':timerMove(-1);break;
   case 'timer-exit':leaveTimer();break;
   case 'timer-complete':{let p=timer&&findPlan(timer.planId);if(p){await saveSnapshot(p);stopTimer();page='history';replaceRoute();render();notify('Trening zapisany w historii.');}break;}
+  case 'test-countdown-8bit':{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});try{await loadCountdown8bit();if(playCountdown8bit())notify('Odtwarzanie przesłanego odliczania 8-bit.');else notify('Włącz sygnalizację dźwiękową.');}catch(err){alert('Nie udało się odtworzyć próbki: '+err.message);}break;}
   case 'test-audio':timerBeep('demo');notify('Odtwarzanie: 3, 2, 1 → koniec pracy → przerwa → START → gong.');break;
   case 'test-audio-cue':timerBeep(button.dataset.kind||'work');notify('Odtworzono sygnał testowy.');break;
   case 'export':downloadText(JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2),'SPARROW-kopia-'+today()+'.json');notify('Pobrano kopię zapasową.');break;
