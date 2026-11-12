@@ -1,7 +1,7 @@
-const CACHE = 'sparrow-v1.0.12';
+const CACHE = 'sparrow-v1.0.13';
 const FILES = [
-  './', './index.html', './styles.css?v=1.0.12', './app.js?v=1.0.12', './manifest.webmanifest',
-  './assets/icon-192.svg', './assets/icon-512.svg', './assets/logo-wordmark.svg', './assets/sparrow-badge.svg', './assets/countdown-8bit.mp3.b64', './assets/tabata-sparrow-mix.ogg.b64', './assets/prep-countdown-10s.ogg.b64'
+  './', './index.html', './styles.css?v=1.0.13', './app.js?v=1.0.13', './manifest.webmanifest',
+  './assets/icon-192.svg', './assets/icon-512.svg', './assets/logo-wordmark.svg', './assets/sparrow-badge.svg', './assets/countdown-8bit.mp3.b64', './assets/tabata-sparrow-mix.ogg.b64', './assets/prep-countdown-10s.ogg.b64', './assets/end-work-game-3plus1.ogg.b64'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
