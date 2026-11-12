@@ -503,32 +503,106 @@ function timerBeep(kind='work',delay=0){
 async function requestWake(){if(!('wakeLock' in navigator)||wakeLock||document.hidden)return;try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>wakeLock=null);}catch(e){/* Android/browser may deny */}}
 async function releaseWake(){try{await wakeLock?.release();}catch(e){}wakeLock=null;}
 function startTimer(p){if(!p.exercises.length||!p.tabata?.enabled){notify('Włącz Tabatę i dodaj ćwiczenia.');return;}timer={planId:p.id,phases:durationPhases(p),idx:0,running:true,remainingMs:0,deadline:0,lastBeepSecond:0,countdownClipPlayed:false,prepVoiceStarted:false};timer.remainingMs=timer.phases[0].sec*1000;timer.deadline=Date.now()+timer.remainingMs;rememberRoute();page='timer';pushRoute();render();ensureAudioContext()?.resume().catch(()=>{});if(timer.phases[0].kind==='prep')cuePreparation(timer.remainingMs,timer.phases[0].sec);else timerBeep(timer.phases[0].kind);if(data.settings.sound){if(data.settings.cuePrep||data.settings.cueBetween)loadPrepVoice().catch(()=>{});if(data.settings.cueEnd)loadEndWorkAudio().catch(()=>{});if(data.settings.cueGo)loadGoSound().catch(()=>{});if(data.settings.cueFinish)loadFinishSound().catch(()=>{});if(data.settings.cueTicks)loadStationTicks().catch(()=>{});}requestWake();clearInterval(ticker);ticker=setInterval(tick,100);}
-function tick(){if(!timer)return;if(!timer.running)return;let now=Date.now();let guard=0;while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){const prev=timer.phases[timer.idx];if(prev.kind==='prep'||prev.kind==='between')stopPrepVoice();if(prev.kind==='rest'||prev.kind==='between')stopStationTicks();timer.idx++;if(timer.idx>=timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();if(prev.kind==='work'&&!timer.countdownClipPlayed)timerBeep('end');timerBeep('done',prev.kind==='work'?.82:0);render();return;}let next=timer.phases[timer.idx];timer.deadline+=next.sec*1000;timer.lastBeepSecond=0;timer.prepVoiceStarted=false;if(prev.kind==='work'||prev.kind==='rest'){if(!timer.countdownClipPlayed)timerBeep('end');if(next.kind==='rest'||(next.kind==='between'&&next.sec>10))cueStationTicks(.82,next.sec*1000);else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}else timerBeep(next.kind,.82);}else if(next.kind==='rest'||(next.kind==='between'&&next.sec>10)){cueStationTicks(0,next.sec*1000);}else if(next.kind==='prep')cuePreparation(next.sec*1000,next.sec);else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}else timerBeep(next.kind);timer.countdownClipPlayed=false;render();}
- if(!timer||timer.idx>=timer.phases.length)return;timer.remainingMs=Math.max(0,timer.deadline-now);let remainSeconds=Math.ceil(timer.remainingMs/1000);let ph=timer.phases[timer.idx];if(ph.kind==='prep'&&ph.sec>=10&&!timer.prepVoiceStarted&&timer.remainingMs<=10000&&data.settings.prepSound!=='beep'&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;if(ph.kind==='between'&&timer.remainingMs<=10000){stopStationTicks();if(!timer.prepVoiceStarted&&playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;}if(ph.kind==='rest'&&timer.remainingMs<=3000)stopStationTicks();if((ph.kind==='work'||ph.kind==='rest')&&remainSeconds<=3&&remainSeconds>=1&&remainSeconds!==timer.lastBeepSecond){timer.lastBeepSecond=remainSeconds;if(remainSeconds===3&&data.settings.endWorkSound==='game'&&playEndWorkAudio(timer.remainingMs)){timer.countdownClipPlayed=true;}else if(remainSeconds===3&&data.settings.endWorkSound!=='game'&&data.settings.soundPack==='retro'&&playCountdown8bit()){timer.countdownClipPlayed=true;}else if(!timer.countdownClipPlayed){timerBeep('count');}}let n=$('#timer-count'),bar=$('#timer-fill');if(n)n.textContent=fmtTime(timer.remainingMs/1000);if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
+function tick(){
+ if(!timer||!timer.running)return;
+ const now=Date.now();let guard=0;
+ while(timer&&timer.idx<timer.phases.length&&now>=timer.deadline&&guard++<3000){
+  const prev=timer.phases[timer.idx];
+  if(prev.kind==='prep'||prev.kind==='between')stopPrepVoice();
+  if(prev.kind==='rest'||prev.kind==='between')stopStationTicks();
+  const endPlayed=timer.countdownClipPlayed;
+  timer.idx++;
+  if(timer.idx>=timer.phases.length){
+   timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();
+   if(prev.kind==='work'||prev.kind==='rest')vibrateTimer('end');
+   timerBeep('done',endPlayed?.82:0);
+   render();return;
+  }
+  const next=timer.phases[timer.idx];
+  timer.deadline+=next.sec*1000;
+  timer.lastBeepSecond=0;timer.prepVoiceStarted=false;
+  if(prev.kind==='work'||prev.kind==='rest'){
+   vibrateTimer('end');
+   const delay=endPlayed?.82:0;
+   if(next.kind==='rest'||(next.kind==='between'&&next.sec>10))cueStationTicks(delay,next.sec*1000);
+   else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}
+   else if(next.kind==='prep')cuePreparation(next.sec*1000,next.sec);
+   else timerBeep(next.kind,delay);
+  }else if(next.kind==='rest'||(next.kind==='between'&&next.sec>10))cueStationTicks(0,next.sec*1000);
+  else if(next.kind==='prep')cuePreparation(next.sec*1000,next.sec);
+  else if(next.kind==='between'){if(playPrepVoice(next.sec*1000,true))timer.prepVoiceStarted=true;}
+  else timerBeep(next.kind);
+  timer.countdownClipPlayed=false;render();
+ }
+ if(!timer||timer.idx>=timer.phases.length)return;
+ timer.remainingMs=Math.max(0,timer.deadline-now);
+ const remaining=Math.ceil(timer.remainingMs/1000);
+ const ph=timer.phases[timer.idx];
+ if(ph.kind==='prep'&&!timer.prepVoiceStarted&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;
+ if(ph.kind==='between'&&timer.remainingMs<=10000){stopStationTicks();if(!timer.prepVoiceStarted&&playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;}
+ if(ph.kind==='rest'&&timer.remainingMs<=3000)stopStationTicks();
+ if((ph.kind==='work'||ph.kind==='rest')&&remaining<=3&&remaining>=1&&remaining!==timer.lastBeepSecond){
+  timer.lastBeepSecond=remaining;
+  if(!timer.countdownClipPlayed&&data.settings.sound&&data.settings.cueEnd&&playEndWorkAudio(timer.remainingMs))timer.countdownClipPlayed=true;
+ }
+ const n=$('#timer-count'),bar=$('#timer-fill');
+ if(n)n.textContent=fmtTime(timer.remainingMs/1000);
+ if(bar&&ph)bar.style.width=`${Math.max(0,Math.min(100,timer.remainingMs/(ph.sec*1000)*100))}%`;
 }
-function timerToggle(){if(!timer||timer.idx>=timer.phases.length)return;if(timer.running){timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;stopFinishSound();stopStationTicks();stopGoSound();stopPrepVoice();stopEndWorkAudio();timer.prepVoiceStarted=false;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;releaseWake();}else{timer.running=true;timer.deadline=Date.now()+timer.remainingMs;if(timer.phases[timer.idx]?.kind==='prep'&&timer.phases[timer.idx].sec>=10&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;if(timer.phases[timer.idx]?.kind==='between'&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;if((timer.phases[timer.idx]?.kind==='rest'&&timer.remainingMs>3000)||(timer.phases[timer.idx]?.kind==='between'&&timer.remainingMs>10000))cueStationTicks(0,timer.remainingMs);if(['work','rest'].includes(timer.phases[timer.idx]?.kind)&&timer.remainingMs<=3000&&data.settings.endWorkSound==='game'&&playEndWorkAudio(timer.remainingMs)){timer.countdownClipPlayed=true;timer.lastBeepSecond=Math.ceil(timer.remainingMs/1000);}requestWake();}render();}
-function timerMove(dir){if(!timer)return;timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));timer.lastBeepSecond=0;stopFinishSound();stopStationTicks();stopGoSound();stopPrepVoice();stopEndWorkAudio();timer.prepVoiceStarted=false;stopCountdown8bit();stopRecordedCues();timer.countdownClipPlayed=false;if(timer.idx===timer.phases.length){timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;}let ph=timer.phases[timer.idx];timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;if(ph.kind==='prep')cuePreparation(timer.remainingMs,ph.sec);else if(ph.kind==='rest'||(ph.kind==='between'&&timer.remainingMs>10000))cueStationTicks(0,timer.remainingMs);else if(ph.kind==='between'){if(playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;}else timerBeep(ph.kind);render();}
-function stopTimer(){clearInterval(ticker);stopFinishSound();stopStationTicks();stopGoSound();stopPrepVoice();stopEndWorkAudio();stopCountdown8bit();stopRecordedCues();timer=null;releaseWake();}
+function timerToggle(){
+ if(!timer||timer.idx>=timer.phases.length)return;
+ if(timer.running){
+  timer.remainingMs=Math.max(0,timer.deadline-Date.now());timer.running=false;
+  stopAllSparrowSounds();timer.prepVoiceStarted=false;timer.countdownClipPlayed=false;releaseWake();
+ }else{
+  timer.running=true;timer.deadline=Date.now()+timer.remainingMs;
+  const phase=timer.phases[timer.idx];
+  if(phase.kind==='prep'&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs))timer.prepVoiceStarted=true;
+  if(phase.kind==='between'&&timer.remainingMs<=10000&&playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;
+  if((phase.kind==='rest'&&timer.remainingMs>3000)||(phase.kind==='between'&&timer.remainingMs>10000))cueStationTicks(0,timer.remainingMs);
+  if(['work','rest'].includes(phase.kind)&&timer.remainingMs<=3000&&playEndWorkAudio(timer.remainingMs)){
+   timer.countdownClipPlayed=true;timer.lastBeepSecond=Math.ceil(timer.remainingMs/1000);
+  }
+  requestWake();
+ }
+ render();
+}
+function timerMove(dir){
+ if(!timer)return;
+ timer.idx=Math.min(timer.phases.length,Math.max(0,timer.idx+dir));
+ timer.lastBeepSecond=0;stopAllSparrowSounds();timer.prepVoiceStarted=false;timer.countdownClipPlayed=false;
+ if(timer.idx===timer.phases.length){
+  timer.running=false;timer.remainingMs=0;clearInterval(ticker);releaseWake();timerBeep('done');render();return;
+ }
+ const ph=timer.phases[timer.idx];
+ timer.remainingMs=ph.sec*1000;timer.deadline=Date.now()+timer.remainingMs;
+ if(ph.kind==='prep')cuePreparation(timer.remainingMs,ph.sec);
+ else if(ph.kind==='rest'||(ph.kind==='between'&&timer.remainingMs>10000))cueStationTicks(0,timer.remainingMs);
+ else if(ph.kind==='between'){if(playPrepVoice(timer.remainingMs,true))timer.prepVoiceStarted=true;}
+ else timerBeep(ph.kind);
+ render();
+}
+function stopTimer(){clearInterval(ticker);stopAllSparrowSounds();timer=null;releaseWake();}
 function leaveTimer(){if(timer&&timer.idx<timer.phases.length&&!confirm('Zakończyć działanie timera?'))return;const id=timer?.planId;stopTimer();if(navigationDepth>0){backTo('plan');return;}page='plan';planId=id;replaceRoute();render();}
 // Event delegation — views are re-rendered as independent screens.
 document.addEventListener('input',e=>{if(e.target?.matches('[data-draft],[data-ex]'))updateDraft(e.target);});
 document.addEventListener('change',async e=>{
  let t=e.target;if(t.matches('[data-draft]')){updateDraft(t);if(t.dataset.draft==='type'){addingClientInline=false;if(draft.type==='group')draft.clientId='';render();}else if(t.dataset.draft==='clientId'){addingClientInline=t.value==='__new__';if(addingClientInline)draft.clientId='';render();if(addingClientInline)$('#p-client-new')?.focus();}}
  if(t.matches('[data-setting]')){
-  const key=t.dataset.setting;
-  if(key==='sound'||key==='vibration'||AUDIO_CUES.includes(key)){
-   data.settings[key]=!!t.checked;
-   if(!t.checked){
-    if(key==='sound')stopAllSparrowSounds();
-    if(key==='cuePrep'||key==='cueBetween')stopPrepVoice();
-    if(key==='cueGo')stopGoSound();
-    if(key==='cueEnd')stopEndWorkAudio();
-    if(key==='cueTicks')stopStationTicks();
-    if(key==='cueFinish')stopFinishSound();
-   }
-   await save();
+ const key=t.dataset.setting;
+ if(key==='sound'||key==='vibration'||AUDIO_CUES.includes(key)){
+  data.settings[key]=!!t.checked;
+  if(!t.checked){
+   if(key==='sound')stopAllSparrowSounds();
+   if(key==='cuePrep'||key==='cueBetween')stopPrepVoice();
+   if(key==='cueGo')stopGoSound();
+   if(key==='cueEnd')stopEndWorkAudio();
+   if(key==='cueTicks')stopStationTicks();
+   if(key==='cueFinish')stopFinishSound();
   }
+  await save();
  }
+}
  if(t.id==='import-file'&&t.files[0]){try{let contents=await t.files[0].text(),candidate=JSON.parse(contents);if(!candidate||!Array.isArray(candidate.plans)||!Array.isArray(candidate.clients)||!Array.isArray(candidate.logs)||candidate.version!==1)throw Error('Nieobsługiwany plik kopii.');if(!confirm('Przywrócenie kopii ZASTĄPI wszystkie obecne plany i kartoteki. Czy kontynuować?'))return;data={version:1,plans:candidate.plans,clients:candidate.clients,logs:candidate.logs,settings:normalizeSoundSettings(candidate.settings)};await save();page='home';draft=null;modal=null;replaceRoute();render();notify('Kopia przywrócona.');}catch(err){alert('Nie udało się odczytać kopii: '+err.message);}finally{t.value='';}}
 });
 document.addEventListener('click',async e=>{let button=e.target.closest('[data-action]');if(!button)return;let a=button.dataset.action,id=button.dataset.id;try{
@@ -568,14 +642,6 @@ document.addEventListener('click',async e=>{let button=e.target.closest('[data-a
   case 'timer-backphase':timerMove(-1);break;
   case 'timer-exit':leaveTimer();break;
   case 'timer-complete':{let p=timer&&findPlan(timer.planId);if(p){await saveSnapshot(p);stopTimer();page='history';replaceRoute();render();notify('Trening zapisany w historii.');}break;}
-  case 'test-countdown-8bit':{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});try{await loadCountdown8bit();if(playCountdown8bit())notify('Odtwarzanie przesłanego odliczania 8-bit.');else notify('Włącz sygnalizację dźwiękową.');}catch(err){alert('Nie udało się odtworzyć próbki: '+err.message);}break;}
-  case 'test-finish-sound':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});if(!data.settings.sound){notify('Włącz sygnalizację dźwiękową.');break;}if(data.settings.finishSound==='previous'){timerBeep('done');notify('Odtwarzanie poprzedniego gongu.');break;}await loadFinishSound();stopFinishSound();if(playFinishSound())notify('Odtwarzanie fanfary zakończenia treningu.');}catch(err){alert('Nie udało się odtworzyć fanfary: '+err.message);}break;}
-  case 'test-station-ticks':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});await loadStationTicks();if(!data.settings.sound){notify('Włącz sygnalizację dźwiękową.');break;}if(playStationTicks(0,true))notify('Tykanie zegara podczas zmiany stanowiska (próbka 3 sekundy).');}catch(err){alert('Nie udało się odtworzyć tykania: '+err.message);}break;}
-  case 'test-go-sound':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});await loadGoSound();if(!data.settings.sound){notify('Włącz sygnalizację dźwiękową.');break;}if(data.settings.startSound==='previous'){notify('Wybierz nagranie GO! w ustawieniach.');break;}stopGoSound();if(playGoSound())notify('Odtwarzanie: GO!');}catch(err){alert('Nie udało się odtworzyć GO!: '+err.message);}break;}
-  case 'test-end-work-sound':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});await loadEndWorkAudio();if(!data.settings.sound){notify('Włącz sygnalizację dźwiękową.');break;}if(data.settings.endWorkSound==='previous'){notify('Wybierz nowy sygnał końca ćwiczenia w ustawieniach.');break;}if(playEndWorkAudio(3000))notify('3, 2, 1… koniec ćwiczenia lub zmiany stanowiska.');}catch(err){alert('Nie udało się odtworzyć nagrania: '+err.message);}break;}
-  case 'test-prep-voice':{try{const ctx=ensureAudioContext();if(ctx?.state==='suspended')ctx.resume().catch(()=>{});await loadPrepVoice();if(!data.settings.sound){notify('Najpierw włącz sygnalizację dźwiękową.');break;}if(data.settings.prepSound==='beep'){notify('Wybierz głosowe odliczanie w polu powyżej.');break;}stopPrepVoice();if(playPrepVoice(10000))notify('Przygotowanie: 10, 9, 8… 1.');}catch(err){alert('Nie udało się odtworzyć odliczania: '+err.message);}break;}
-  case 'test-audio':{if(data.settings.soundPack==='recorded'){try{await loadSparrowMix();}catch(e){notify('Nagranie niedostępne, odtwarzam sygnały zastępcze.');}}timerBeep('demo');notify('Odtwarzanie: 3, 2, 1 → koniec pracy → przerwa → START → gong.');break;}
-  case 'test-audio-cue':{let kind=button.dataset.kind||'work';if(kind==='done'&&data.settings.finishSound!=='previous'){try{await loadFinishSound();}catch(e){notify('Fanfara niedostępna, odtwarzam gong zastępczy.');}}if(kind==='work'&&data.settings.startSound!=='previous'){try{await loadGoSound();}catch(e){notify('Nagranie GO! niedostępne; odtwarzam poprzedni sygnał.');}}if(data.settings.soundPack==='recorded'){try{await loadSparrowMix();}catch(e){notify('Nagranie niedostępne, odtwarzam sygnał zastępczy.');}}if(data.settings.soundPack==='retro'&&kind==='countdown'){try{await loadCountdown8bit();if(playCountdown8bit())break;}catch(e){}}timerBeep(kind);notify('Odtworzono sygnał testowy.');break;}
   case 'export':downloadText(JSON.stringify({...data,exportedAt:new Date().toISOString()},null,2),'SPARROW-kopia-'+today()+'.json');notify('Pobrano kopię zapasową.');break;
   case 'import':$('#import-file')?.click();break;
   case 'install':if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;render();}break;
