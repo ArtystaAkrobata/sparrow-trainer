@@ -10,7 +10,7 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 - timer: praca / zmiana stanowiska / przerwa między obwodami, pauza, przechodzenie między fazami oraz pięć zaakceptowanych nagrań obsługujących sześć typów sygnałów;
 - zapis planów, powielanie, historia wykonanych treningów;
 - podopieczni: kartoteki i indywidualne wpisy postępów;
-- eksport i przywrócenie lokalnych danych w JSON dostępne w **Bibliotece planów**;
+- eksport i przywracanie lokalnych danych w JSON dostępne w **Ustawieniach**;
 - wygląd nawiązujący do przesłanych znaków Sparrow: granat, niebieski, sportowa typografia, cienie i wypukłe przyciski;
 - ekran startowy z **przykładowym** planem 8 stanowisk (można usunąć lub zmodyfikować).
 
@@ -49,9 +49,9 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 4. Włącz tryb samolotowy i sprawdź trening oraz zapis postępów.
 5. Utwórz kopię JSON, przywróć ją i zweryfikuj plan oraz kartotekę.
 
-Wersja: **1.0.21 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
+Wersja: **1.0.22 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
 
-### Panel Ustawienia v1.0.21
+### Panel Ustawienia v1.0.22
 
 - dźwięki globalnie: włącz/wyłącz;
 - wibracje: włącz/wyłącz, niezależnie od dźwięków;
