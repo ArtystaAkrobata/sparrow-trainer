@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.20. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.21. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,6 +21,14 @@ function normalizeSoundSettings(input){
 function stopAllSparrowSounds(){
  stopFinishSound();stopGoSound();stopPrepVoice();stopEndWorkAudio();stopStationTicks();
 }
+function preloadEnabledSounds(){
+ if(!data.settings.sound)return;
+ if(data.settings.cuePrep||data.settings.cueBetween)loadPrepVoice().catch(e=>console.info('Voice countdown unavailable:',e));
+ if(data.settings.cueGo)loadGoSound().catch(e=>console.info('GO sound unavailable:',e));
+ if(data.settings.cueEnd)loadEndWorkAudio().catch(e=>console.info('End sound unavailable:',e));
+ if(data.settings.cueTicks)loadStationTicks().catch(e=>console.info('Clock sound unavailable:',e));
+ if(data.settings.cueFinish)loadFinishSound().catch(e=>console.info('Finish sound unavailable:',e));
+}
 const DEMO_NAMES=['Podciąganie na drążku','Dipy na poręczach','Pompki','Stanie na rękach','Wykroki','Wznosy nóg','Przysiady','Plank'];
 const demoPlan=()=>({id:uid(),type:'group',name:'Przykładowy obwód Sparrow',date:today(),clientId:'',warmup:{enabled:true,notes:''},cooldown:{enabled:true,notes:''},exercises:DEMO_NAMES.map(name=>({id:uid(),name,sets:'',reps:'',load:'',note:''})),tabata:{enabled:true,work:60,rest:40,rounds:2,between:120,prep:10},createdAt:Date.now(),updatedAt:Date.now(),demo:true});
 const newPlan=(type='group')=>({id:uid(),type,name:'',date:today(),clientId:'',warmup:{enabled:true,notes:''},cooldown:{enabled:true,notes:''},exercises:[{id:uid(),name:'',sets:'',reps:'',load:'',note:''}],tabata:{enabled:type==='group',work:60,rest:40,rounds:2,between:120,prep:10},createdAt:Date.now(),updatedAt:Date.now()});
@@ -34,13 +42,7 @@ async function init(){
   catch(e){console.warn('IndexedDB unavailable, using local storage',e);storageKind='localStorage';try{const raw=localStorage.getItem('sparrow-local-fallback');if(raw){const obj=JSON.parse(raw);if(obj&&Array.isArray(obj.plans)&&Array.isArray(obj.clients)&&Array.isArray(obj.logs))data=obj;else throw Error('invalid');}else{data=blankDB();data.plans=[demoPlan()];await save();}}catch(e2){data=blankDB();data.plans=[demoPlan()];}}
   data.settings=normalizeSoundSettings(data.settings);
   await save();
-  if(data.settings.sound){
-   if(data.settings.cueFinish)loadFinishSound().catch(e=>console.info('Finish sound unavailable:',e));
-   if(data.settings.cueTicks)loadStationTicks().catch(e=>console.info('Clock sound unavailable:',e));
-   if(data.settings.cueGo)loadGoSound().catch(e=>console.info('GO sound unavailable:',e));
-   if(data.settings.cueEnd)loadEndWorkAudio().catch(e=>console.info('End sound unavailable:',e));
-   if(data.settings.cuePrep||data.settings.cueBetween)loadPrepVoice().catch(e=>console.info('Voice countdown unavailable:',e));
-  }
+  preloadEnabledSounds();
   render();navigationReady=true;history.replaceState(routeState(0),'');
   if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(e=>console.info('Offline install unavailable:',e));
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;if(page==='settings')render();});
@@ -599,7 +601,7 @@ document.addEventListener('change',async e=>{
    if(key==='cueEnd')stopEndWorkAudio();
    if(key==='cueTicks')stopStationTicks();
    if(key==='cueFinish')stopFinishSound();
-  }
+  }else preloadEnabledSounds();
   await save();
  }
 }
