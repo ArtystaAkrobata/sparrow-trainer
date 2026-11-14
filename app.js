@@ -1,4 +1,4 @@
-/* SPARROW Sport Club — offline MVP v1.0.23. No external libraries, no network calls for user data. */
+/* SPARROW Sport Club — offline MVP v1.0.24. No external libraries, no network calls for user data. */
 'use strict';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -36,7 +36,7 @@ let dbHandle=null, data=blankDB(), page='home', planId=null, clientId=null, draf
 function openDB(){return new Promise((res,rej)=>{let q=indexedDB.open('sparrow-trainer',1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains('kv'))q.result.createObjectStore('kv')};q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
 function dbGet(key){return new Promise((res,rej)=>{let tx=dbHandle.transaction('kv','readonly'),r=tx.objectStore('kv').get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 function dbSet(key,value){return new Promise((res,rej)=>{let tx=dbHandle.transaction('kv','readwrite');tx.objectStore('kv').put(value,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
-async function save(){try{if(dbHandle) await dbSet('data',data);else localStorage.setItem('sparrow-local-fallback',JSON.stringify(data));}catch(e){console.error(e);alert('Błąd zapisu danych! Wykonaj kopię zapasową i sprawdź miejsce w telefonie.');}}
+async function save(){try{if(dbHandle) await dbSet('data',data);else localStorage.setItem('sparrow-local-fallback',JSON.stringify(data));return true;}catch(e){console.error(e);alert('Błąd zapisu danych! Wykonaj kopię zapasową i sprawdź miejsce w telefonie.');return false;}}
 async function init(){
   try{dbHandle=await openDB();let d=await dbGet('data');if(d&&Array.isArray(d.plans)&&Array.isArray(d.clients)&&Array.isArray(d.logs)){data=d;}else{data=blankDB();data.plans=[demoPlan()];await save();}}
   catch(e){console.warn('IndexedDB unavailable, using local storage',e);storageKind='localStorage';try{const raw=localStorage.getItem('sparrow-local-fallback');if(raw){const obj=JSON.parse(raw);if(obj&&Array.isArray(obj.plans)&&Array.isArray(obj.clients)&&Array.isArray(obj.logs))data=obj;else throw Error('invalid');}else{data=blankDB();data.plans=[demoPlan()];await save();}}catch(e2){data=blankDB();data.plans=[demoPlan()];}}
@@ -56,9 +56,43 @@ function updateOnline(){let x=$('#net-state');if(x)x.textContent=navigator.onLin
 
 const SPARROW_NAV_KEY='sparrow-navigation-v1';
 let navigationReady=false, navigationDepth=0;
+const NEW_DRAFT_STORAGE='sparrow-new-plan-drafts-v1';
+let newDraftKey=null, draftStorageWarned=false, savingPlan=false;
+const newPlanDrafts=new Map();
+try{
+ const saved=JSON.parse(localStorage.getItem(NEW_DRAFT_STORAGE)||'{}');
+ for(const [key,entry] of Object.entries(saved||{})){
+  if(typeof entry?.plan?.id==='string'&&Array.isArray(entry.plan.exercises))newPlanDrafts.set(key,{...entry,dirty:true});
+ }
+}catch(e){console.warn('Nie można odczytać szkiców treningów.',e);}
+const draftKeyFor=(type,client='')=>type==='personal'&&client?'personal:'+client:type;
+const newPlanLabel=(type,client,label)=>newPlanDrafts.get(draftKeyFor(type,client))?.dirty?'Kontynuuj szkic':label;
+function writeNewDrafts(){
+ try{
+  const pending=[...newPlanDrafts].filter(([,entry])=>entry.dirty);
+  if(pending.length)localStorage.setItem(NEW_DRAFT_STORAGE,JSON.stringify(Object.fromEntries(pending)));
+  else localStorage.removeItem(NEW_DRAFT_STORAGE);
+  return true;
+ }catch(e){
+  console.warn('Nie można zapisać szkiców treningów.',e);
+  if(!draftStorageWarned){draftStorageWarned=true;notify('Nie udało się zapisać szkicu na telefonie. Nie zamykaj aplikacji przed zapisaniem treningu.');}
+  return false;
+ }
+}
+function persistDraftChange(){
+ if(newDraftKey&&draft){
+  newPlanDrafts.set(newDraftKey,{plan:structuredClone(draft),addingClientInline,dirty:true});
+  writeNewDrafts();
+ }
+ rememberRoute();
+}
+function clearNewDraft(){
+ if(newDraftKey&&newPlanDrafts.delete(newDraftKey))writeNewDrafts();
+ newDraftKey=null;
+}
 function routeState(scroll=window.scrollY){
  return {sparrowNav:SPARROW_NAV_KEY,depth:navigationDepth,page,planId,clientId,
-  addingClientInline,modal:modal?structuredClone(modal):null,draft:draft?structuredClone(draft):null,
+  addingClientInline,newDraftKey,modal:modal?structuredClone(modal):null,draft:draft&&!newDraftKey?structuredClone(draft):null,
   scrollY:Math.max(0,Number(scroll)||0)};
 }
 function rememberRoute(){if(navigationReady)history.replaceState(routeState(),'');}
@@ -74,7 +108,7 @@ window.addEventListener('popstate',e=>{
  if(!target||target.sparrowNav!==SPARROW_NAV_KEY){
   if(page!=='home'){
    if(timer)stopTimer();
-   navigationDepth=0;page='home';planId=null;clientId=null;draft=null;modal=null;addingClientInline=false;
+   navigationDepth=0;page='home';planId=null;clientId=null;draft=null;newDraftKey=null;modal=null;addingClientInline=false;
    history.pushState(routeState(0),'');render();window.scrollTo(0,0);
   }
   return;
@@ -91,13 +125,19 @@ window.addEventListener('popstate',e=>{
  draft=target.draft?structuredClone(target.draft):null;
  modal=target.modal?structuredClone(target.modal):null;
  addingClientInline=!!target.addingClientInline;
+ newDraftKey=page==='edit'?(target.newDraftKey||null):null;
+ if(newDraftKey){
+  const entry=newPlanDrafts.get(newDraftKey);
+  if(entry?.plan.id===planId&&!findPlan(planId)){draft=structuredClone(entry.plan);addingClientInline=entry.addingClientInline;}
+  else{page=newDraftKey.startsWith('personal')?'personal':'group';draft=null;newDraftKey=null;addingClientInline=false;replaceRoute();}
+ }
  if(page==='timer'&&!timer){page=findPlan(planId)?'plan':'home';replaceRoute();}
  if(page==='plan'&&!findPlan(planId)){page='home';replaceRoute();}
  if(page==='client'&&!findClient(clientId)){page='clients';replaceRoute();}
  render();
  requestAnimationFrame(()=>window.scrollTo(0,Math.max(0,Number(target.scrollY)||0)));
 });
-function goto(dest,id=null){if(dest===page&&!modal&&(dest==='plan'?id===planId:dest==='client'?id===clientId:true))return;if(timer&&page==='timer'&&dest!=='timer'){if(!confirm('Zakończyć uruchomiony timer?'))return;stopTimer();}rememberRoute();page=dest;planId=(dest==='plan'?id:planId);clientId=(dest==='client'?id:clientId);draft=null;modal=null;addingClientInline=false;pushRoute();render();window.scrollTo({top:0,behavior:'instant'});}
+function goto(dest,id=null){if(dest===page&&!modal&&(dest==='plan'?id===planId:dest==='client'?id===clientId:true))return;if(timer&&page==='timer'&&dest!=='timer'){if(!confirm('Zakończyć uruchomiony timer?'))return;stopTimer();}rememberRoute();page=dest;planId=(dest==='plan'?id:planId);clientId=(dest==='client'?id:clientId);draft=null;newDraftKey=null;modal=null;addingClientInline=false;pushRoute();render();window.scrollTo({top:0,behavior:'instant'});}
 function shell(content){let isTimer=page==='timer';let navs=[['home','home','Start'],['group','users','Grupowe'],['personal','user','Indywidualne'],['clients','book','Osoby'],['history','history','Historia']];let active=['plan','edit','timer'].includes(page)?((page==='edit'?draft?.type:findPlan(planId)?.type)==='personal'?'personal':'group'):page;
 return `<div class="app-shell"><header class="shell-head"><div class="brand"><img class="brand-logo" src="./assets/icon-192.svg" alt="Logo Sparrow"><div class="brand-text"><strong>SPARROW</strong><small>SPORT CLUB · PANEL TRENERA</small></div></div><div class="head-actions"><button class="tiny-btn" data-action="goto" data-page="library" aria-label="Biblioteka planów">${ico('book')}</button><button class="tiny-btn" data-action="goto" data-page="settings" aria-label="Ustawienia">${ico('settings')}</button></div></header><main class="main" id="main-view">${content}</main>${!isTimer?`<nav class="bottom-nav" aria-label="Główna nawigacja">${navs.map(([p,ic,label])=>`<button type="button" class="nav-item ${active===p?'active':''}" data-action="goto" data-page="${p}" aria-label="${label}" ${active===p?'aria-current="page"':''}>${ico(ic)}<span>${label}</span></button>`).join('')}</nav>`:''}</div>`;}
 function backButton(dest='home'){return `<button class="back" data-action="back" data-fallback="${dest}">${ico('back')} Wróć</button>`;}
@@ -135,7 +175,7 @@ function homeView(){
    </button>
    <div class="home-mode-foot">
     <span class="home-stations" aria-hidden="true">${Array.from({length:8},()=>'<i></i>').join('')}</span>
-    <button class="home-mode-new" type="button" data-action="new-plan" data-type="group">${ico('plus')} Nowy plan</button>
+    <button class="home-mode-new" type="button" data-action="new-plan" data-type="group">${ico('plus')} ${newPlanLabel('group','','Nowy plan')}</button>
    </div>
   </div>
   <div class="home-mode home-mode-personal">
@@ -146,7 +186,7 @@ function homeView(){
    </button>
    <div class="home-mode-foot">
     <span class="home-mode-foot-text">Historia i kartoteki osób</span>
-    <button class="home-mode-new" type="button" data-action="new-plan" data-type="personal">${ico('plus')} Nowy plan</button>
+    <button class="home-mode-new" type="button" data-action="new-plan" data-type="personal">${ico('plus')} ${newPlanLabel('personal','','Nowy plan')}</button>
    </div>
   </div>
  </section>
@@ -155,7 +195,7 @@ function homeView(){
   ${plans.length?`<div class="home-recent-list">${plans.map(homeRecentRow).join('')}</div>`:`<p class="home-recent-empty">Nie ma jeszcze zapisanych planów. Wybierz rodzaj treningu i utwórz pierwszy plan.</p>`}
  </section>`;
 }
-function listView(type){let group=type==='group',arr=data.plans.filter(p=>p.type===type).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return `<div class="title-row"><div><div class="eyebrow">SPARROW SPORT CLUB</div><h1>${group?'Trening grupowy':'Trening indywidualny'}</h1><div class="sub">${group?'Obwody i lista ćwiczeń':'Plany dopasowane do podopiecznych'}</div></div></div>${btn('new-plan',`${ico('plus')} Utwórz nowy plan`,'full','data-type="'+type+'"')}<div class="section-title">ZAPISANE PLANY · ${arr.length}</div>${arr.length?arr.map(planCard).join(''):`<div class="card empty">${ico('clipboard')}<strong>Nie ma jeszcze treningów</strong><p>Zapisz pierwszy plan, aby móc do niego wracać.</p></div>`}${!group?`<div class="section-title">PODOPIECZNI</div>${btn('goto',`${ico('users')} Otwórz kartoteki`,'secondary full','data-page="clients"')}`:''}`;}
+function listView(type){let group=type==='group',arr=data.plans.filter(p=>p.type===type).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return `<div class="title-row"><div><div class="eyebrow">SPARROW SPORT CLUB</div><h1>${group?'Trening grupowy':'Trening indywidualny'}</h1><div class="sub">${group?'Obwody i lista ćwiczeń':'Plany dopasowane do podopiecznych'}</div></div></div>${btn('new-plan',`${ico('plus')} ${newPlanLabel(type,'','Utwórz nowy plan')}`,'full','data-type="'+type+'"')}<div class="section-title">ZAPISANE PLANY · ${arr.length}</div>${arr.length?arr.map(planCard).join(''):`<div class="card empty">${ico('clipboard')}<strong>Nie ma jeszcze treningów</strong><p>Zapisz pierwszy plan, aby móc do niego wracać.</p></div>`}${!group?`<div class="section-title">PODOPIECZNI</div>${btn('goto',`${ico('users')} Otwórz kartoteki`,'secondary full','data-page="clients"')}`:''}`;}
 function libraryView(){
  let arr=[...data.plans].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
  return `${backButton('home')}<div class="title-row"><div><h1>Biblioteka planów</h1><div class="sub">Otwieraj, kopiuj i modyfikuj treningi</div></div></div>${arr.length?arr.map(planCard).join(''):'<div class="card empty">Brak zapisanych planów.</div>'}<div class="footnote">Kopia planu jest niezależna od oryginału. Można zmienić datę i ćwiczenia bez utraty poprzedniej wersji.</div>`;
@@ -183,25 +223,26 @@ function assignTypedClientFromForm(){
   if(!Array.from(select.options).some(opt=>opt.value===c.id))select.add(new Option(c.name,c.id));
   select.value=c.id;
  }
- input.value='';
+ input.value='';delete draft.inlineClientName;
  return {client:c,created};
 }
-function editorView(){let p=draft;if(!p)return '';let isPersonal=p.type==='personal';return `${backButton(p.type==='group'?'group':'personal')}<div class="eyebrow">EDYTOR PLANU</div><h1>${findPlan(p.id)?'Edytuj trening':'Nowy trening'}</h1><p class="sub">Zapisz plan — będzie dostępny bez internetu.</p><div class="card">
+function editorView(){let p=draft;if(!p)return '';let isPersonal=p.type==='personal';return `${backButton(p.type==='group'?'group':'personal')}<div class="eyebrow">EDYTOR PLANU</div><h1>${findPlan(p.id)?'Edytuj trening':'Nowy trening'}</h1><p class="sub">${newDraftKey?'Szkic zapisuje się na tym telefonie. Wybierz „Zapisz trening”, żeby dodać go do planów.':'Zapisz plan — będzie dostępny bez internetu.'}</p><div class="card">
 ${input('Nazwa treningu','p-name',p.name,'text','data-draft="name" placeholder="np. Środa — kalistenika" maxlength="100"')}
 <div class="two-fields"><div class="field"><label for="p-type">Rodzaj treningu</label><select id="p-type" data-draft="type"><option value="group" ${!isPersonal?'selected':''}>Grupowy</option><option value="personal" ${isPersonal?'selected':''}>Indywidualny</option></select></div>${input('Data','p-date',p.date,'date','data-draft="date"')}</div>
-${isPersonal?`<div class="field"><label for="p-client">Podopieczny (opcjonalnie)</label><select id="p-client" data-draft="clientId"><option value="" ${!addingClientInline&&!p.clientId?'selected':''}>Bez przypisanej osoby</option>${data.clients.map(c=>`<option value="${esc(c.id)}" ${!addingClientInline&&p.clientId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="__new__" ${addingClientInline?'selected':''}>＋ Dodaj nową osobę…</option></select></div>${addingClientInline?`<div class="field"><label for="p-client-new">Imię i nazwisko nowej osoby</label><input id="p-client-new" type="text" maxlength="100" autocomplete="name" placeholder="np. Jan Kowalski"><div style="margin-top:9px">${btn('add-client-inline',`${ico('plus')} Dodaj i przypisz do treningu`,'secondary')}</div><p class="footnote" style="margin:8px 0 0">Możesz też po prostu wpisać nazwisko i zapisać trening.</p></div>`:''} `:''}
+${isPersonal?`<div class="field"><label for="p-client">Podopieczny (opcjonalnie)</label><select id="p-client" data-draft="clientId"><option value="" ${!addingClientInline&&!p.clientId?'selected':''}>Bez przypisanej osoby</option>${data.clients.map(c=>`<option value="${esc(c.id)}" ${!addingClientInline&&p.clientId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="__new__" ${addingClientInline?'selected':''}>＋ Dodaj nową osobę…</option></select></div>${addingClientInline?`<div class="field"><label for="p-client-new">Imię i nazwisko nowej osoby</label><input id="p-client-new" type="text" value="${esc(p.inlineClientName||'')}" maxlength="100" autocomplete="name" placeholder="np. Jan Kowalski"><div style="margin-top:9px">${btn('add-client-inline',`${ico('plus')} Dodaj i przypisz do treningu`,'secondary')}</div><p class="footnote" style="margin:8px 0 0">Możesz też po prostu wpisać nazwisko i zapisać trening.</p></div>`:''} `:''}
 </div>
 <details class="details-box"><summary>${ico('check')} Rozgrzewka <span class="tag">opcjonalnie ${ico('down')}</span></summary><div class="details-inner"><div class="switch-row"><span>Uwzględnij rozgrzewkę w planie</span><input class="switch" aria-label="Rozgrzewka włączona" type="checkbox" data-draft="warmup.enabled" ${p.warmup.enabled?'checked':''}></div><div class="field" style="margin-bottom:0"><label>Notatka (nieobowiązkowa)</label><textarea rows="2" data-draft="warmup.notes" placeholder="Wpisz uwagi do rozgrzewki (opcjonalnie)">${esc(p.warmup.notes)}</textarea></div></div></details>
 <div class="section-title">GŁÓWNY PLAN ĆWICZEŃ</div>${p.exercises.map(exerciseEdit).join('')}${btn('add-ex',`${ico('plus')} Dodaj ćwiczenie`,'secondary full')}
 <div class="section-title">TIMER / TABATA</div><div class="card"><div class="switch-row"><div><strong>Użyj Tabaty</strong><div class="sub">Można wyłączyć i korzystać z samej listy</div></div><input class="switch" aria-label="Tabata włączona" type="checkbox" data-draft="tabata.enabled" ${p.tabata.enabled?'checked':''}></div><div class="two-fields">${numberField('Praca (sek.)','tabata.work',p.tabata.work,5,600)}${numberField('Przerwa (sek.)','tabata.rest',p.tabata.rest,0,600)}${numberField('Liczba obwodów','tabata.rounds',p.tabata.rounds,1,20)}${numberField('Przerwa między obwodami (sek.)','tabata.between',p.tabata.between,0,1800)}${numberField('Przygotowanie (sek.)','tabata.prep',p.tabata.prep,0,120)}</div><p class="footnote" style="margin-bottom:0">Obwód: każdy uczestnik wykonuje wszystkie stanowiska. Po ostatnim ćwiczeniu zamiast zwykłej przerwy jest przerwa między obwodami. Po ostatnim obwodzie timer kończy pracę.</p></div>
 <details class="details-box"><summary>${ico('check')} Rozciąganie <span class="tag">opcjonalnie ${ico('down')}</span></summary><div class="details-inner"><div class="switch-row"><span>Uwzględnij rozciąganie</span><input class="switch" type="checkbox" aria-label="Rozciąganie włączone" data-draft="cooldown.enabled" ${p.cooldown.enabled?'checked':''}></div><div class="field" style="margin-bottom:0"><label>Notatka (nieobowiązkowa)</label><textarea rows="2" data-draft="cooldown.notes">${esc(p.cooldown.notes)}</textarea></div></div></details>
-${btn('save-plan',`${ico('check')} Zapisz trening`,'full big')}`;}
+${btn('save-plan',`${ico('check')} Zapisz trening`,'full big')}
+${newDraftKey?`<div style="margin-top:10px">${btn('discard-draft',`${ico('trash')} Usuń szkic`,'minor full')}</div>`:''}`; }
 function numberField(label,path,value,min,max){return `<div class="field"><label>${label}</label><input type="number" inputmode="numeric" data-draft="${path}" min="${min}" max="${max}" value="${esc(value)}"></div>`;}
 function clientsView(){let arr=[...data.clients].sort((a,b)=>a.name.localeCompare(b.name,'pl'));return `<div class="title-row"><div><div class="eyebrow">TRENINGI INDYWIDUALNE</div><h1>Podopieczni</h1><div class="sub">Wyniki, notatki i historia każdej osoby</div></div></div>${btn('new-client',`${ico('plus')} Dodaj podopiecznego`,'full')}
 <div class="section-title">KARTOTEKI · ${arr.length}</div>${arr.length?arr.map(c=>`<div class="card compact"><button class="list-card" data-action="open-client" data-id="${esc(c.id)}"><span class="list-icon">${ico('user')}</span><span class="grow"><h3>${esc(c.name)}</h3><p>${c.progress?.length||0} wpisów postępów · ${data.logs.filter(l=>l.clientId===c.id).length} treningów</p></span>${ico('arrow')}</button></div>`).join(''):'<div class="card empty">'+ico('users')+'<strong>Nie ma jeszcze podopiecznych</strong><p>Dodaj osobę, by prowadzić jej notatki.</p></div>'}<p class="footnote">Dane podopiecznych pozostają tylko w pamięci tego urządzenia. Nie są wysyłane na GitHub ani do chmury.</p>`;}
 function clientView(){let c=findClient(clientId);if(!c)return `<div class="card empty">Nie znaleziono osoby.</div>`;let plans=data.plans.filter(p=>p.clientId===c.id).sort((a,b)=>b.date.localeCompare(a.date)), logs=data.logs.filter(l=>l.clientId===c.id).sort((a,b)=>b.timestamp-a.timestamp);return `${backButton('clients')}<div class="plan-top"><span class="chip">${ico('user')} PODOPIECZNY</span><h1>${esc(c.name)}</h1>${c.notes?`<p class="sub" style="white-space:pre-wrap">${esc(c.notes)}</p>`:''}<div class="row wrap">${btn('edit-client',`${ico('edit')} Edytuj dane`,'secondary','data-id="'+esc(c.id)+'"')}${btn('add-progress',`${ico('plus')} Dodaj postęp`,'','data-id="'+esc(c.id)+'"')}</div></div>
 <div class="section-title">POSTĘPY I NOTATKI · ${(c.progress||[]).length}</div>${(c.progress||[]).length?[...c.progress].sort((a,b)=>b.timestamp-a.timestamp).map(x=>`<div class="card"><div class="row between"><strong>${esc(x.exercise||'Notatka trenera')}</strong><button class="mini-ico" data-action="delete-progress" data-id="${esc(c.id)}" data-progress="${esc(x.id)}" aria-label="Usuń wpis">${ico('trash')}</button></div><div class="small muted">${new Date(x.timestamp).toLocaleDateString('pl-PL')}</div>${x.result?`<div class="tag" style="margin:8px 0">${esc(x.result)}</div>`:''}${x.note?`<p style="white-space:pre-wrap;margin:7px 0 0">${esc(x.note)}</p>`:''}</div>`).join(''):'<div class="card empty">Nie zapisano jeszcze postępów.</div>'}
-<div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} Nowy plan dla tej osoby`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
+<div class="section-title">PLANY TEJ OSOBY · ${plans.length}</div>${btn('new-plan',`${ico('plus')} ${newPlanLabel('personal',c.id,'Nowy plan dla tej osoby')}`,'secondary full','data-type="personal" data-client="'+esc(c.id)+'"')}${plans.map(planCard).join('')}
 <div class="section-title">WYKONANE TRENINGI · ${logs.length}</div>${logs.slice(0,10).map(l=>`<div class="card"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleDateString('pl-PL')}</div></div>`).join('')}${btn('delete-client',`${ico('trash')} Usuń kartotekę`,'minor full','data-id="'+esc(c.id)+'"')}`;}
 function historyView(){let arr=[...data.logs].sort((a,b)=>b.timestamp-a.timestamp);return `<div class="title-row"><div><div class="eyebrow">DZIENNIK TRENINGÓW</div><h1>Historia</h1><div class="sub">Treningi oznaczone jako wykonane</div></div></div>${arr.length?arr.map(l=>`<div class="card"><div class="row between"><div class="grow"><strong>${esc(l.name)}</strong><div class="sub">${new Date(l.timestamp).toLocaleString('pl-PL',{dateStyle:'medium',timeStyle:'short'})} · ${l.type==='group'?'grupowy':'indywidualny'}</div>${l.clientId?`<div class="sub">${esc(findClient(l.clientId)?.name||'podopieczny')}</div>`:''}</div><button class="mini-ico" data-action="delete-log" data-id="${esc(l.id)}" aria-label="Usuń wpis historii">${ico('trash')}</button></div><div class="top-progress"><span>${l.exerciseCount} ćwiczeń</span><span>${l.usedTabata?'Z Tabatą':'Bez Tabaty'}</span></div></div>`).join(''):'<div class="card empty">'+ico('history')+'<strong>Historia jest pusta</strong><p>Po treningu wybierz „Zapisz jako wykonany”.</p></div>'}`;}
 function cueToggle(key,title,description){
@@ -236,7 +277,7 @@ if(modal.kind==='progress'){return `<div class="modal-wrap" id="modal-wrap"><div
 return '';}
 function render(){let views={home:homeView,group:()=>listView('group'),personal:()=>listView('personal'),library:libraryView,plan:planView,edit:editorView,clients:clientsView,client:clientView,history:historyView,settings:settingsView,timer:timerView};$('#app').innerHTML=shell((views[page]||homeView)())+renderModal();updateOnline();}
 function setField(root,path,v){let [a,b]=path.split('.');if(b){root[a]||={};root[a][b]=v;}else root[a]=v;}
-function updateDraft(target){if(!draft)return;let path=target.dataset.draft;if(path){let v=target.type==='checkbox'?target.checked:target.value;if(target.type==='number')v=asNum(v,0,0,1800);setField(draft,path,v);}if(target.dataset.ex){let ex=draft.exercises.find(e=>e.id===target.dataset.ex);if(ex)ex[target.dataset.exKey]=target.value;}rememberRoute();}
+function updateDraft(target){if(!draft||savingPlan)return;if(target.id==='p-client-new'){draft.inlineClientName=target.value;persistDraftChange();return;}let path=target.dataset.draft;if(path){let v=target.type==='checkbox'?target.checked:target.value;if(target.type==='number')v=asNum(v,0,0,1800);if(path==='clientId'&&v==='__new__')v='';setField(draft,path,v);}if(target.dataset.ex){let ex=draft.exercises.find(e=>e.id===target.dataset.ex);if(ex)ex[target.dataset.exKey]=target.value;}persistDraftChange();}
 function saveSnapshot(p){data.logs.push({id:uid(),planId:p.id,name:p.name,type:p.type,clientId:p.clientId||'',exerciseCount:p.exercises.length,usedTabata:!!p.tabata?.enabled,timestamp:Date.now()});return save();}
 function downloadText(text,filename){let blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
 // SPARROW Sound Pack 1 — built-in Web Audio, works without downloading audio files.
@@ -588,9 +629,21 @@ function timerMove(dir){
 function stopTimer(){clearInterval(ticker);stopAllSparrowSounds();timer=null;releaseWake();}
 function leaveTimer(){if(timer&&timer.idx<timer.phases.length&&!confirm('Zakończyć działanie timera?'))return;const id=timer?.planId;stopTimer();if(navigationDepth>0){backTo('plan');return;}page='plan';planId=id;replaceRoute();render();}
 // Event delegation — views are re-rendered as independent screens.
-document.addEventListener('input',e=>{if(e.target?.matches('[data-draft],[data-ex]'))updateDraft(e.target);});
+document.addEventListener('input',e=>{if(e.target?.matches('[data-draft],[data-ex],#p-client-new'))updateDraft(e.target);});
 document.addEventListener('change',async e=>{
- let t=e.target;if(t.matches('[data-draft]')){updateDraft(t);if(t.dataset.draft==='type'){addingClientInline=false;if(draft.type==='group')draft.clientId='';render();}else if(t.dataset.draft==='clientId'){addingClientInline=t.value==='__new__';if(addingClientInline)draft.clientId='';render();if(addingClientInline)$('#p-client-new')?.focus();}}
+ let t=e.target;
+ if(draft&&!savingPlan&&t.matches('[data-draft]')){
+  if(t.dataset.draft==='type'){
+   addingClientInline=false;
+   if(t.value==='group'){draft.clientId='';delete draft.inlineClientName;}
+   updateDraft(t);render();
+  }else if(t.dataset.draft==='clientId'){
+   addingClientInline=t.value==='__new__';
+   if(!addingClientInline)delete draft.inlineClientName;
+   updateDraft(t);
+   render();if(addingClientInline)$('#p-client-new')?.focus();
+  }else updateDraft(t);
+ }
  if(t.matches('[data-setting]')){
  const key=t.dataset.setting;
  if(key==='sound'||key==='vibration'||AUDIO_CUES.includes(key)){
@@ -606,19 +659,75 @@ document.addEventListener('change',async e=>{
   await save();
  }
 }
- if(t.id==='import-file'&&t.files[0]){try{let contents=await t.files[0].text(),candidate=JSON.parse(contents);if(!candidate||!Array.isArray(candidate.plans)||!Array.isArray(candidate.clients)||!Array.isArray(candidate.logs)||candidate.version!==1)throw Error('Nieobsługiwany plik kopii.');if(!confirm('Przywrócenie kopii ZASTĄPI wszystkie obecne plany i kartoteki. Czy kontynuować?'))return;data={version:1,plans:candidate.plans,clients:candidate.clients,logs:candidate.logs,settings:normalizeSoundSettings(candidate.settings)};await save();page='home';draft=null;modal=null;replaceRoute();render();notify('Kopia przywrócona.');}catch(err){alert('Nie udało się odczytać kopii: '+err.message);}finally{t.value='';}}
+ if(t.id==='import-file'&&t.files[0]){try{let contents=await t.files[0].text(),candidate=JSON.parse(contents);if(!candidate||!Array.isArray(candidate.plans)||!Array.isArray(candidate.clients)||!Array.isArray(candidate.logs)||candidate.version!==1)throw Error('Nieobsługiwany plik kopii.');if(!confirm('Przywrócenie kopii ZASTĄPI wszystkie obecne plany i kartoteki. Czy kontynuować?'))return;data={version:1,plans:candidate.plans,clients:candidate.clients,logs:candidate.logs,settings:normalizeSoundSettings(candidate.settings)};await save();page='home';draft=null;newDraftKey=null;modal=null;replaceRoute();render();notify('Kopia przywrócona.');}catch(err){alert('Nie udało się odczytać kopii: '+err.message);}finally{t.value='';}}
 });
-document.addEventListener('click',async e=>{let button=e.target.closest('[data-action]');if(!button)return;let a=button.dataset.action,id=button.dataset.id;try{
+document.addEventListener('click',async e=>{let button=e.target.closest('[data-action]');if(!button)return;let a=button.dataset.action,id=button.dataset.id;if(savingPlan)return;try{
  switch(a){
   case 'goto':goto(button.dataset.page,id);break;
   case 'back':backTo(button.dataset.fallback||'home');break;
   case 'open-plan':goto('plan',id);break;
-  case 'new-plan':rememberRoute();addingClientInline=false;draft=newPlan(button.dataset.type||'group');if(button.dataset.client)draft.clientId=button.dataset.client;planId=draft.id;page='edit';pushRoute();render();window.scrollTo(0,0);break;
-  case 'edit-plan':{let p=findPlan(id);if(p){rememberRoute();addingClientInline=false;planId=id;draft=structuredClone(p);page='edit';pushRoute();render();window.scrollTo(0,0);}break;}
-  case 'save-plan':{if(!draft)return;draft.name=draft.name.trim();if(!draft.name){alert('Wpisz nazwę treningu.');$('#p-name')?.focus();break;}draft.exercises=draft.exercises.filter(x=>x.name.trim());if(!draft.exercises.length){alert('Dodaj przynajmniej jedno ćwiczenie.');break;}draft.tabata.work=asNum(draft.tabata.work,60,5,600);draft.tabata.rest=asNum(draft.tabata.rest,40,0,600);draft.tabata.rounds=asNum(draft.tabata.rounds,2,1,20);draft.tabata.between=asNum(draft.tabata.between,120,0,1800);draft.tabata.prep=asNum(draft.tabata.prep,10,0,120);if(draft.type==='personal'&&addingClientInline){if(!($('#p-client-new')?.value||'').trim()){alert('Wpisz imię i nazwisko lub wybierz zapisaną osobę.');$('#p-client-new')?.focus();break;}assignTypedClientFromForm();}draft.updatedAt=Date.now();draft.demo=false;let i=data.plans.findIndex(x=>x.id===draft.id),editing=i>=0;if(i<0)data.plans.push(draft);else data.plans[i]=draft;planId=draft.id;draft=null;addingClientInline=false;await save();if(editing&&navigationDepth>0){notify('Plan zapisany w telefonie.');backTo('plan');}else{page='plan';replaceRoute();render();notify('Plan zapisany w telefonie.');window.scrollTo(0,0);}break;}
-  case 'add-ex':draft?.exercises.push({id:uid(),name:'',sets:'',reps:'',load:'',note:''});render();break;
-  case 'remove-ex':if(draft){draft.exercises=draft.exercises.filter(x=>x.id!==id);render();}break;
-  case 'move-ex':{let i=draft?.exercises.findIndex(x=>x.id===id),j=i+Number(button.dataset.dir);if(i>=0&&j>=0&&j<draft.exercises.length){[draft.exercises[i],draft.exercises[j]]=[draft.exercises[j],draft.exercises[i]];render();}break;}
+  case 'new-plan':{
+   const type=button.dataset.type||'group',client=button.dataset.client||'',key=draftKeyFor(type,client);
+   if(page==='edit'&&newDraftKey===key)break;
+   rememberRoute();
+   newDraftKey=key;
+   const entry=newPlanDrafts.get(key);
+   const resumed=entry&&!findPlan(entry.plan.id);
+   draft=resumed?structuredClone(entry.plan):newPlan(type);
+   addingClientInline=!!(resumed&&entry.addingClientInline);
+   if(!resumed){
+    if(entry){newPlanDrafts.delete(key);writeNewDrafts();}
+    draft.clientId=client;
+    newPlanDrafts.set(key,{plan:structuredClone(draft),addingClientInline:false,dirty:false});
+   }
+   planId=draft.id;page='edit';pushRoute();render();window.scrollTo(0,0);break;
+  }
+  case 'edit-plan':{let p=findPlan(id);if(p){rememberRoute();newDraftKey=null;addingClientInline=false;planId=id;draft=structuredClone(p);page='edit';pushRoute();render();window.scrollTo(0,0);}break;}
+  case 'discard-draft':{
+   if(!newDraftKey||!draft||!confirm('Usunąć ten szkic treningu?'))break;
+   const fallback=draft.type==='personal'?'personal':'group';
+   clearNewDraft();draft=null;addingClientInline=false;
+   backTo(fallback);break;
+  }
+  case 'save-plan':{
+   if(!draft||savingPlan)return;
+   const name=draft.name.trim(),exercises=draft.exercises.filter(x=>x.name.trim());
+   if(!name){alert('Wpisz nazwę treningu.');$('#p-name')?.focus();break;}
+   if(!exercises.length){alert('Dodaj przynajmniej jedno ćwiczenie.');break;}
+   const typedClient=draft.type==='personal'&&addingClientInline;
+   if(typedClient&&!($('#p-client-new')?.value||'').trim()){
+    alert('Wpisz imię i nazwisko lub wybierz zapisaną osobę.');$('#p-client-new')?.focus();break;
+   }
+   savingPlan=true;
+   try{
+    const previousClientId=draft.clientId,inlineClientName=draft.inlineClientName;
+    const assigned=typedClient?assignTypedClientFromForm():null;
+    const plan={...structuredClone(draft),name,exercises:structuredClone(exercises),updatedAt:Date.now(),demo:false};
+    delete plan.inlineClientName;
+    const tab=plan.tabata;
+    tab.work=asNum(tab.work,60,5,600);tab.rest=asNum(tab.rest,40,0,600);tab.rounds=asNum(tab.rounds,2,1,20);
+    tab.between=asNum(tab.between,120,0,1800);tab.prep=asNum(tab.prep,10,0,120);
+    const i=data.plans.findIndex(x=>x.id===plan.id),editing=i>=0,previous=editing?data.plans[i]:null;
+    if(editing)data.plans[i]=plan;else data.plans.push(plan);
+    if(!await save()){
+     if(editing)data.plans[i]=previous;else data.plans=data.plans.filter(x=>x.id!==plan.id);
+     if(assigned?.created)data.clients=data.clients.filter(x=>x.id!==assigned.client.id);
+     if(page==='edit'&&draft?.id===plan.id){draft.clientId=previousClientId;draft.inlineClientName=inlineClientName;render();}
+     break;
+    }
+    if(page!=='edit'||draft?.id!==plan.id){
+     for(const [key,entry] of newPlanDrafts)if(entry.plan.id===plan.id){newPlanDrafts.delete(key);writeNewDrafts();render();break;}
+     break;
+    }
+    clearNewDraft();planId=plan.id;draft=null;addingClientInline=false;
+    if(editing&&navigationDepth>0){notify('Plan zapisany w telefonie.');backTo('plan');}
+    else{page='plan';replaceRoute();render();notify('Plan zapisany w telefonie.');window.scrollTo(0,0);}
+   }finally{savingPlan=false;}
+   break;
+  }
+  case 'add-ex':if(draft){draft.exercises.push({id:uid(),name:'',sets:'',reps:'',load:'',note:''});persistDraftChange();render();}break;
+  case 'remove-ex':if(draft){draft.exercises=draft.exercises.filter(x=>x.id!==id);persistDraftChange();render();}break;
+  case 'move-ex':{let i=draft?.exercises.findIndex(x=>x.id===id),j=i+Number(button.dataset.dir);if(i>=0&&j>=0&&j<draft.exercises.length){[draft.exercises[i],draft.exercises[j]]=[draft.exercises[j],draft.exercises[i]];persistDraftChange();render();}break;}
   case 'clone-plan':{let p=findPlan(id);if(!p)break;let c=structuredClone(p);c.id=uid();c.name=p.name+' – kopia';c.date=today();c.createdAt=c.updatedAt=Date.now();c.demo=false;c.exercises=c.exercises.map(x=>({...x,id:uid()}));data.plans.push(c);await save();rememberRoute();planId=c.id;page='plan';pushRoute();render();notify('Utworzono kopię treningu.');break;}
   case 'delete-plan':{let p=findPlan(id);if(p&&confirm(`Usunąć plan „${p.name}”? Historia wykonanych treningów zostanie zachowana.`)){data.plans=data.plans.filter(x=>x.id!==id);await save();notify('Plan usunięty.');backTo(p.type==='personal'?'personal':'group');}break;}
   case 'complete-plan':{let p=findPlan(id);if(p){await saveSnapshot(p);notify('Trening dodany do historii.');rememberRoute();page='history';pushRoute();render();}break;}
@@ -626,7 +735,7 @@ document.addEventListener('click',async e=>{let button=e.target.closest('[data-a
    const input=$('#p-client-new');
    if(!(input?.value||'').trim()){notify('Wpisz imię i nazwisko osoby.');input?.focus();break;}
    const result=assignTypedClientFromForm();
-   if(result){if(result.created)await save();addingClientInline=false;render();notify(result.created?'Osoba dodana i przypisana do treningu.':'Wybrano istniejącego podopiecznego.');}
+   if(result){addingClientInline=false;persistDraftChange();if(result.created)await save();render();notify(result.created?'Osoba dodana i przypisana do treningu.':'Wybrano istniejącego podopiecznego.');}
    break;
   }
   case 'new-client':rememberRoute();modal={kind:'client'};pushRoute();render();break;

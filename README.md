@@ -9,6 +9,7 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 - rozgrzewka i rozciąganie jako proste, zwijane sekcje z opcjonalnymi notatkami;
 - timer: praca / zmiana stanowiska / przerwa między obwodami, pauza, przechodzenie między fazami oraz pięć zaakceptowanych nagrań obsługujących sześć typów sygnałów;
 - zapis planów, powielanie, historia wykonanych treningów;
+- lokalne szkice nowych treningów, które można wznowić po cofnięciu lub ponownym otwarciu aplikacji;
 - podopieczni: kartoteki i indywidualne wpisy postępów;
 - eksport i przywracanie lokalnych danych w JSON dostępne w **Ustawieniach**;
 - wygląd nawiązujący do przesłanych znaków Sparrow: granat, niebieski, sportowa typografia, cienie i wypukłe przyciski;
@@ -49,7 +50,7 @@ Prywatna, mobilna aplikacja dla trenera Sparrow Sport Club. Działa na Androidzi
 4. Włącz tryb samolotowy i sprawdź trening oraz zapis postępów.
 5. Utwórz kopię JSON, przywróć ją i zweryfikuj plan oraz kartotekę.
 
-Wersja: **1.0.23 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
+Wersja: **1.0.24 — prototyp do testów na Androidzie, nie finalna aplikacja produkcyjna**.
 
 ### Panel Ustawienia v1.0.23
 
@@ -62,3 +63,7 @@ Wersja: **1.0.23 — prototyp do testów na Androidzie, nie finalna aplikacja pr
 - Wybrana przez właściciela ikona SPARROW w granacie i błękicie, przygotowana w PNG 192 × 192, 512 × 512 i wersji maskowalnej 512 × 512 dla Androida.
 - Ikona instalacji jest przypisana w `manifest.webmanifest`; ikona dla iOS w `index.html` (180 × 180).
 - Jeśli aplikacja była już zainstalowana, Android może przez jakiś czas zachowywać starą ikonę. Przed ewentualnym odinstalowaniem należy **wyeksportować kopię zapasową JSON w Ustawieniach**, ponieważ usunięcie aplikacji może wyczyścić lokalne dane treningowe.
+
+## Szkice treningów (v1.0.24)
+
+Nowy trening jest zapisywany jako lokalny szkic w trakcie wpisywania. Wróć do niego przez **Kontynuuj szkic** tam, gdzie rozpoczęto plan. Dopiero **Zapisz trening** dodaje go do listy planów. **Usuń szkic** pozwala zacząć od nowa.
